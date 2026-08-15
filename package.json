@@ -1,0 +1,75 @@
+{
+  "name": "harness-ui",
+  "productName": "Harness UI",
+  "version": "0.1.0",
+  "description": "DeepSeek Harness 桌面壳应用（Codex 风格，可扩展）",
+  "author": "local",
+  "license": "MIT",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "icon": "node scripts/make-icon.mjs",
+    "smoke": "tsx scripts/smoke-test.ts",
+    "smoke:bundled": "tsx scripts/smoke-bundled.ts",
+    "vendor": "node scripts/copy-dsh.mjs",
+    "dist": "npm run vendor && npm run build && electron-builder --win",
+    "dist:dir": "npm run vendor && npm run build && electron-builder --win --dir"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^43.4.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  },
+  "build": {
+    "appId": "com.local.harness-ui",
+    "productName": "Harness UI",
+    "directories": {
+      "output": "dist",
+      "buildResources": "resources"
+    },
+    "files": [
+      "out/**/*",
+      "resources/**/*"
+    ],
+    "asar": true,
+    "afterPack": "scripts/after-pack.cjs",
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.ico"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "artifactName": "Harness-UI-Setup-${version}.exe",
+      "shortcutName": "Harness UI",
+      "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "Harness-UI-Portable-${version}.exe"
+    }
+  }
+}
