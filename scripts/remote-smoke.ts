@@ -61,10 +61,18 @@ async function main(): Promise<void> {
   const body4 = await r4.text();
   check('带 cookie 代理成功', r4.status === 200 && body4.includes('upstream:/hello'));
 
-  // 4b) HTML 响应注入 crypto.randomUUID polyfill（手机非安全上下文修复）
-  const r4b = await fetch(`${base}/page`, { headers: { cookie: 'harness_remote=deadbeefcafebabe' } });
+  // 4b) HTML 响应注入 crypto.randomUUID polyfill + 手机响应式（按 UA）
+  const r4b = await fetch(`${base}/page`, {
+    headers: { cookie: 'harness_remote=deadbeefcafebabe', 'user-agent': 'Mozilla/5.0 (iPhone)' },
+  });
   const body4b = await r4b.text();
   check('HTML 注入 randomUUID polyfill', body4b.includes('window.crypto.randomUUID') && body4b.includes('<head>'));
+  check('手机 UA 注入响应式 CSS', body4b.includes('harness-mobile'));
+  const r4c = await fetch(`${base}/page`, {
+    headers: { cookie: 'harness_remote=deadbeefcafebabe', 'user-agent': 'Mozilla/5.0 (Windows NT 10.0)' },
+  });
+  const body4c = await r4c.text();
+  check('桌面 UA 不注入响应式 CSS', !body4c.includes('harness-mobile'));
 
   // 5) 正确 token POST → 302 到 /
   const r5 = await fetch(`${base}/__auth`, { method: 'POST', body: 'token=deadbeefcafebabe', headers: { 'content-type': 'application/x-www-form-urlencoded' }, redirect: 'manual' });

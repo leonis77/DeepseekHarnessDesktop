@@ -22,19 +22,41 @@ const COOKIE_NAME = 'harness_remote';
 const RANDOM_UUID_POLYFILL =
   '<script>(function(){try{if(window.crypto&&!window.crypto.randomUUID){window.crypto.randomUUID=function(){var b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h="";for(var i=0;i<16;i++){h+=(b[i]<16?"0":"")+b[i].toString(16);}return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20);};}}catch(e){}})();</script>';
 
-function injectUuidPolyfill(html: string): string {
+/** 把 fragment 注入 <head>（或 <html> 之后）。 */
+function injectIntoHead(html: string, fragment: string): string {
   const lower = html.toLowerCase();
   const headIdx = lower.indexOf('<head>');
   if (headIdx !== -1) {
     const at = headIdx + '<head>'.length;
-    return html.slice(0, at) + RANDOM_UUID_POLYFILL + html.slice(at);
+    return html.slice(0, at) + fragment + html.slice(at);
   }
   const htmlIdx = lower.indexOf('<html');
   if (htmlIdx !== -1) {
     const closeIdx = html.indexOf('>', htmlIdx);
-    if (closeIdx !== -1) return html.slice(0, closeIdx + 1) + RANDOM_UUID_POLYFILL + html.slice(closeIdx + 1);
+    if (closeIdx !== -1) return html.slice(0, closeIdx + 1) + fragment + html.slice(closeIdx + 1);
   }
-  return RANDOM_UUID_POLYFILL + html;
+  return fragment + html;
+}
+
+function injectUuidPolyfill(html: string): string {
+  return injectIntoHead(html, RANDOM_UUID_POLYFILL);
+}
+
+/**
+ * 手机响应式补丁：dsh 网页 UI 无宽度断点（CSS 类名还带构建哈希），在窄屏会横向溢出。
+ * 这里注入一组「语义级」响应式规则（不依赖哈希类名，兼容 dsh 升级），改善手机观感：
+ * 防横向滚动、防 iOS 聚焦缩放、放大触控目标、代码/图片/表格不撑破。
+ */
+const RESPONSIVE_CSS =
+  '<style id="harness-mobile">html{-webkit-text-size-adjust:100%;}body,#root{overflow-x:hidden;max-width:100vw;}input,textarea,select,button{font-size:16px!important;}img,svg,video,canvas,pre,code,table{max-width:100%!important;}pre,code{white-space:pre-wrap!important;word-break:break-word!important;}button,[role="button"]{min-height:36px;}</style>';
+
+function isMobileUA(ua: string | undefined): boolean {
+  return /Android|iPhone|iPad|Mobile|Mobi|Windows Phone/i.test(ua ?? '');
+}
+
+function injectResponsive(html: string, mobile: boolean): string {
+  if (!mobile) return html;
+  return injectIntoHead(html, RESPONSIVE_CSS);
 }
 
 export interface RemoteGatewayOptions {
@@ -309,6 +331,7 @@ load();
 function proxyHttp(req: http.IncomingMessage, res: http.ServerResponse, target: string, log: (msg: string) => void, logPath: string): void {
   const t = parseTarget(target);
   const headers = Object.fromEntries(sanitizeHeaders(req.rawHeaders, t, false));
+  const mobile = isMobileUA(req.headers['user-agent']);
   const upstream = http.request(
     { hostname: t.hostname, port: t.port, method: req.method, path: req.url, headers },
     (upRes) => {
@@ -319,13 +342,13 @@ function proxyHttp(req: http.IncomingMessage, res: http.ServerResponse, target: 
         const chunks: Buffer[] = [];
         upRes.on('data', (c: Buffer) => chunks.push(c));
         upRes.on('end', () => {
-          const modified = injectUuidPolyfill(Buffer.concat(chunks).toString('utf8'));
+          const body = injectResponsive(injectUuidPolyfill(Buffer.concat(chunks).toString('utf8')), mobile);
           const outHeaders = { ...upRes.headers };
           delete outHeaders['content-length'];
           delete outHeaders['content-encoding'];
           delete outHeaders['transfer-encoding'];
           res.writeHead(status, outHeaders);
-          res.end(modified);
+          res.end(body);
         });
         upRes.on('error', () => {
           if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
