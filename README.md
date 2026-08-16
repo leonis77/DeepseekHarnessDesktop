@@ -8,7 +8,7 @@
   <img alt="Electron" src="https://img.shields.io/badge/Electron-43-47848F" />
   <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5-3178C6" />
   <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB" />
-  <img alt="Version" src="https://img.shields.io/badge/version-0.1.0-orange" />
+  <img alt="Version" src="https://img.shields.io/badge/version-0.1.1-orange" />
   <img alt="GitHub Repo stars" src="https://img.shields.io/github/stars/leonis77/DeepseekHarnessDesktop" />
 </p>
 
