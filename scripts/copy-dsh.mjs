@@ -72,4 +72,6 @@ const count = (() => {
   walk(dst);
   return n;
 })();
+// vendor 重建后让归档缓存失效，afterPack 下次会重新压缩
+fs.rmSync(path.join(__dirname, "..", "vendor", "dsh.tar.gz"), { force: true });
 console.log(`已复制并减重 dsh → vendor/dsh（${count} 文件，来源：${src}）`);

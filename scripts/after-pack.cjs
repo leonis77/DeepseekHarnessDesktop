@@ -17,8 +17,19 @@ module.exports = async function afterPack(context) {
   }
 
   fs.rmSync(dst, { force: true });
+
+  // 缓存归档：vendor/dsh 未变时直接复用，避免每次打包都重压 ~170MB（约 10 分钟）
+  const cache = path.join(projectDir, "vendor", "dsh.tar.gz");
+  if (fs.existsSync(cache)) {
+    fs.copyFileSync(cache, dst);
+    const mb = (fs.statSync(dst).size / 1048576).toFixed(1);
+    console.log(`afterPack: 复用缓存归档 → resources/dsh.tar.gz（${mb} MB）`);
+    return;
+  }
+
   // bsdtar（Win10+ 自带 tar.exe）压缩为 gzip tar
   execSync(`tar -czf "${dst}" -C "${path.dirname(src)}" "dsh"`, { stdio: "ignore" });
+  fs.copyFileSync(dst, cache);
   const mb = (fs.statSync(dst).size / 1048576).toFixed(1);
-  console.log(`afterPack: 已压缩 dsh → resources/dsh.tar.gz（${mb} MB）`);
+  console.log(`afterPack: 已压缩 dsh → resources/dsh.tar.gz（${mb} MB，已缓存）`);
 };

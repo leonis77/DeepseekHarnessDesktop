@@ -13,6 +13,30 @@ import { networkInterfaces } from 'node:os';
 
 const COOKIE_NAME = 'harness_remote';
 
+/**
+ * 手机走的是 http://<LAN IP>（非安全上下文），浏览器不会提供 `crypto.randomUUID`
+ * （该 API 仅限 HTTPS / localhost）。而 dsh 前端在发送消息时调用它，导致手机端报
+ * "crypto.randomUUID is not a function"。这里在代理返回的 HTML 里注入一个 polyfill：
+ * 用 `crypto.getRandomValues`（非安全上下文也可用）生成标准 v4 UUID。
+ */
+const RANDOM_UUID_POLYFILL =
+  '<script>(function(){try{if(window.crypto&&!window.crypto.randomUUID){window.crypto.randomUUID=function(){var b=crypto.getRandomValues(new Uint8Array(16));b[6]=(b[6]&15)|64;b[8]=(b[8]&63)|128;var h="";for(var i=0;i<16;i++){h+=(b[i]<16?"0":"")+b[i].toString(16);}return h.slice(0,8)+"-"+h.slice(8,12)+"-"+h.slice(12,16)+"-"+h.slice(16,20)+"-"+h.slice(20);};}}catch(e){}})();</script>';
+
+function injectUuidPolyfill(html: string): string {
+  const lower = html.toLowerCase();
+  const headIdx = lower.indexOf('<head>');
+  if (headIdx !== -1) {
+    const at = headIdx + '<head>'.length;
+    return html.slice(0, at) + RANDOM_UUID_POLYFILL + html.slice(at);
+  }
+  const htmlIdx = lower.indexOf('<html');
+  if (htmlIdx !== -1) {
+    const closeIdx = html.indexOf('>', htmlIdx);
+    if (closeIdx !== -1) return html.slice(0, closeIdx + 1) + RANDOM_UUID_POLYFILL + html.slice(closeIdx + 1);
+  }
+  return RANDOM_UUID_POLYFILL + html;
+}
+
 export interface RemoteGatewayOptions {
   /** 返回当前 dsh 的目标 URL（http://127.0.0.1:port/），未就绪返回 null。 */
   getTarget: () => string | null;
@@ -200,7 +224,28 @@ function proxyHttp(req: http.IncomingMessage, res: http.ServerResponse, target: 
   const upstream = http.request(
     { hostname: t.hostname, port: t.port, method: req.method, path: req.url, headers },
     (upRes) => {
-      res.writeHead(upRes.statusCode ?? 502, upRes.headers);
+      const status = upRes.statusCode ?? 502;
+      const contentType = String(upRes.headers['content-type'] ?? '');
+      // HTML 响应注入 crypto.randomUUID polyfill（手机非安全上下文需要）
+      if (contentType.includes('text/html')) {
+        const chunks: Buffer[] = [];
+        upRes.on('data', (c: Buffer) => chunks.push(c));
+        upRes.on('end', () => {
+          const modified = injectUuidPolyfill(Buffer.concat(chunks).toString('utf8'));
+          const outHeaders = { ...upRes.headers };
+          delete outHeaders['content-length'];
+          delete outHeaders['content-encoding'];
+          delete outHeaders['transfer-encoding'];
+          res.writeHead(status, outHeaders);
+          res.end(modified);
+        });
+        upRes.on('error', () => {
+          if (!res.headersSent) res.writeHead(502, { 'content-type': 'text/plain; charset=utf-8' });
+          res.end('upstream error');
+        });
+        return;
+      }
+      res.writeHead(status, upRes.headers);
       upRes.pipe(res);
     }
   );

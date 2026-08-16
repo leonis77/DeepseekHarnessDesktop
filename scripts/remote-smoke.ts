@@ -12,8 +12,13 @@ function check(name: string, condition: boolean, extra = ''): void {
 }
 
 async function main(): Promise<void> {
-  // 上游：一个回显 HTTP 服务 + 一个 upgrade 回显 socket
+  // 上游：一个回显 HTTP 服务 + 一个 HTML 页 + 一个 upgrade 回显 socket
   const upstream = http.createServer((req, res) => {
+    if (req.url === '/page') {
+      res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+      res.end('<!doctype html><html><head><title>t</title></head><body>hi</body></html>');
+      return;
+    }
     res.writeHead(200, { 'content-type': 'text/plain' });
     res.end(`upstream:${req.url}:${req.headers.host ?? ''}`);
   });
@@ -51,6 +56,11 @@ async function main(): Promise<void> {
   const r4 = await fetch(`${base}/hello`, { headers: { cookie: 'harness_remote=deadbeefcafebabe' } });
   const body4 = await r4.text();
   check('带 cookie 代理成功', r4.status === 200 && body4.includes('upstream:/hello'));
+
+  // 4b) HTML 响应注入 crypto.randomUUID polyfill（手机非安全上下文修复）
+  const r4b = await fetch(`${base}/page`, { headers: { cookie: 'harness_remote=deadbeefcafebabe' } });
+  const body4b = await r4b.text();
+  check('HTML 注入 randomUUID polyfill', body4b.includes('window.crypto.randomUUID') && body4b.includes('<head>'));
 
   // 5) 正确 token POST → 302 到 /
   const r5 = await fetch(`${base}/__auth`, { method: 'POST', body: 'token=deadbeefcafebabe', headers: { 'content-type': 'application/x-www-form-urlencoded' }, redirect: 'manual' });
