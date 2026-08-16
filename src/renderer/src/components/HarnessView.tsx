@@ -1,8 +1,9 @@
 import { createElement, useEffect, useRef } from 'react';
-import type { ServiceState } from '../../../shared/types';
+import type { ServiceState, StartupProgress } from '../../../shared/types';
 
 interface Props {
   service: ServiceState;
+  progress: StartupProgress;
 }
 
 // 注入透明背景，让壳的自定义背景透进 Harness 对话区（沉浸式）
@@ -11,7 +12,7 @@ html, body, #root { background: transparent !important; }
 :root, [data-theme] { --dsw-alias-bg-base: transparent !important; }
 `;
 
-export default function HarnessView({ service }: Props) {
+export default function HarnessView({ service, progress }: Props) {
   const webviewRef = useRef<any>(null);
 
   useEffect(() => {
@@ -39,16 +40,22 @@ export default function HarnessView({ service }: Props) {
   const loading = service.url == null || service.status === 'idle' || service.status === 'starting';
 
   if (loading) {
+    const percent = Math.max(0, Math.min(100, progress.percent));
+    const busy = service.status === 'starting' || service.status === 'preparing';
     return (
       <div className="harness-loading">
         <div className="spinner" />
         <p>
           {service.status === 'preparing'
             ? '首次启动，正在准备 Harness 环境（解压约 1 分钟）…'
-            : service.status === 'starting'
-              ? '正在启动 Harness 服务（首次加载插件约 1-2 分钟，请稍候）…'
-              : '等待服务…'}
+            : progress.label || (service.status === 'starting' ? '正在启动 Harness 服务…' : '等待服务…')}
         </p>
+        {busy && (
+          <div className="boot-progress" role="progressbar" aria-valuenow={percent}>
+            <div className="boot-progress-fill" style={{ width: `${percent}%` }} />
+            <span className="boot-progress-text">{percent}%</span>
+          </div>
+        )}
         {service.status === 'error' && <p className="muted">启动失败，请到「设置」查看，或使用「重启服务」。</p>}
       </div>
     );

@@ -5,10 +5,14 @@ import type {
   DshVersionInfo,
   FileEntry,
   McpScanResult,
+  PluginState,
   ProfileInfo,
+  RemoteStatus,
   ServiceState,
   SessionInfo,
   SettingsUpdate,
+  ShellUpdaterState,
+  StartupProgress,
   TerminalResult,
   UpdateStatus,
 } from './types';
@@ -26,6 +30,7 @@ export const IPC = {
   service: {
     restart: 'service:restart',
     onState: 'service:state',
+    onProgress: 'service:progress',
   },
   commands: {
     list: 'ext:list-commands',
@@ -71,10 +76,25 @@ export const IPC = {
   mcp: {
     scan: 'mcp:scan',
   },
+  plugins: {
+    list: 'plugins:list',
+    setEnabled: 'plugins:set-enabled',
+  },
+  remote: {
+    status: 'remote:status',
+    setEnabled: 'remote:set-enabled',
+    regenerateToken: 'remote:regenerate-token',
+    qr: 'remote:qr',
+  },
   update: {
     checkDsh: 'update:check-dsh',
     upgradeDsh: 'update:upgrade-dsh',
     checkShell: 'update:check-shell',
+    shellState: 'update:shell-state',
+    shellCheck: 'update:shell-check',
+    shellDownload: 'update:shell-download',
+    shellInstall: 'update:shell-install',
+    onShellState: 'update:shell-state-changed',
   },
 } as const;
 
@@ -89,6 +109,7 @@ export interface ShellApi {
 
   restartService(): Promise<ServiceState>;
   onServiceState(cb: (state: ServiceState) => void): () => void;
+  onServiceProgress(cb: (progress: StartupProgress) => void): () => void;
 
   listCommands(): Promise<CommandDescriptor[]>;
   runCommand(id: string): Promise<void>;
@@ -137,9 +158,26 @@ export interface ShellApi {
     scan(): Promise<McpScanResult>;
   };
 
+  plugins: {
+    list(): Promise<PluginState[]>;
+    setEnabled(enabledIds: string[]): Promise<AppConfig>;
+  };
+
+  remote: {
+    status(): Promise<RemoteStatus>;
+    setEnabled(enabled: boolean): Promise<RemoteStatus>;
+    regenerateToken(): Promise<RemoteStatus>;
+    qr(): Promise<string | null>;
+  };
+
   update: {
     checkDsh(): Promise<DshVersionInfo>;
     upgradeDsh(): Promise<TerminalResult>;
     checkShell(): Promise<UpdateStatus>;
+    shellState(): Promise<ShellUpdaterState>;
+    shellCheck(): Promise<void>;
+    shellDownload(): Promise<void>;
+    shellInstall(): void;
+    onShellState(cb: (state: ShellUpdaterState) => void): () => void;
   };
 }

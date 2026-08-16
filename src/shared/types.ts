@@ -78,6 +78,9 @@ export interface AppConfig {
   idleStopMinutes?: number;
   dshBin?: string;
   nodeBin?: string;
+  disabledPlugins?: string[];
+  remoteEnabled?: boolean;
+  remoteToken?: string;
 }
 
 export type SettingsUpdate = Partial<AppConfig>;
@@ -144,4 +147,38 @@ export interface UpdateStatus {
 export interface McpScanResult {
   servers: string[];
   raw: string;
+}
+
+/** ── 冷启动进度 ── */
+export interface StartupProgress {
+  phase: 'idle' | 'preparing' | 'spawning' | 'loading' | 'ready' | 'error';
+  percent: number; // 0..100
+  label: string;
+  elapsedMs: number;
+}
+
+/** ── 插件开关 ── */
+export interface PluginState {
+  id: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
+/** ── 手机远程网关 ── */
+export interface RemoteStatus {
+  enabled: boolean;
+  running: boolean;
+  url: string | null; // LAN 访问地址
+  token: string;
+  error: string | null;
+}
+
+/** ── 壳自更新状态 ── */
+export interface ShellUpdaterState {
+  supported: boolean;
+  state: 'idle' | 'checking' | 'available' | 'not-available' | 'downloading' | 'downloaded' | 'error';
+  version: string | null;
+  percent: number;
+  error: string | null;
 }

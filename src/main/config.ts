@@ -14,6 +14,8 @@ const DEFAULTS: AppConfig = {
   keybindings: { commandPalette: 'Ctrl+K', togglePanel: 'Ctrl+B' },
   githubRepo: 'leonis77/DeepseekHarnessDesktop',
   idleStopMinutes: 0,
+  disabledPlugins: [],
+  remoteEnabled: false,
   background: { type: 'gradient', gradientId: 'aurora', color: '#0b0f17', customColors: ['#3b82f6', '#8b5cf6', '#14b8a6'], opacity: 1, blur: 0, animated: true, glassBlur: 20, noise: true },
   pet: { ...DEFAULT_PET },
 };

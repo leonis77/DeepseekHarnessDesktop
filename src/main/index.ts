@@ -16,15 +16,27 @@ import { listSessions, removeSession } from './sessions';
 import { scanMcp } from './mcp';
 import { checkDsh, upgradeDsh, checkGithubRelease } from './update';
 import { applyPet, movePet, hidePet, sendPetServiceState } from './pet';
-import { ensureBundledPlugins } from './plugins';
+import { ensureBundledPlugins, listBundledPlugins } from './plugins';
+import { BUNDLED_PLUGIN_IDS } from '../shared/plugins';
+import { startRemoteGateway, generateToken, type RemoteGateway } from './remote';
+import { qrDataUrl } from './qr';
+import {
+  initAutoUpdater,
+  updaterSupported,
+  shellUpdaterState,
+  checkShellUpdate,
+  downloadShellUpdate,
+  installShellUpdate,
+} from './updater';
 import { IPC } from '../shared/ipc';
-import type { BootstrapState, ServiceState } from '../shared/types';
+import type { BootstrapState, RemoteStatus, ServiceState, StartupProgress } from '../shared/types';
 
 const APP_NAME = 'Harness UI';
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let server: DshServer | null = null;
+let remoteGateway: RemoteGateway | null = null;
 let quitting = false;
 let idleTimer: NodeJS.Timeout | null = null;
 let idleStopped = false;
@@ -172,8 +184,61 @@ function broadcastConfig(): void {
   mainWindow?.webContents.send(IPC.settings.onChanged, config.get());
 }
 
+function broadcastProgress(progress: StartupProgress): void {
+  mainWindow?.webContents.send(IPC.service.onProgress, progress);
+}
+
+function remoteStatus(): RemoteStatus {
+  const cfg = config.get();
+  return {
+    enabled: cfg.remoteEnabled ?? false,
+    running: remoteGateway != null,
+    url: remoteGateway ? remoteGateway.url : null,
+    token: cfg.remoteToken ?? '',
+    error: null,
+  };
+}
+
+async function applyRemoteEnabled(enabled: boolean): Promise<RemoteStatus> {
+  try {
+    if (enabled) {
+      let token = config.get().remoteToken;
+      if (!token) {
+        token = generateToken();
+        config.update({ remoteToken: token });
+      }
+      if (!remoteGateway) {
+        remoteGateway = await startRemoteGateway({ getTarget: () => server?.url ?? null, token, log });
+      }
+      config.update({ remoteEnabled: true });
+    } else {
+      if (remoteGateway) {
+        await remoteGateway.stop();
+        remoteGateway = null;
+      }
+      config.update({ remoteEnabled: false });
+    }
+    return remoteStatus();
+  } catch (e) {
+    return { ...remoteStatus(), error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+async function regenerateRemoteToken(): Promise<RemoteStatus> {
+  const token = generateToken();
+  config.update({ remoteToken: token });
+  if (remoteGateway) {
+    await remoteGateway.stop();
+    remoteGateway = null;
+  }
+  if (config.get().remoteEnabled) {
+    remoteGateway = await startRemoteGateway({ getTarget: () => server?.url ?? null, token, log });
+  }
+  return remoteStatus();
+}
+
 async function startServer(): Promise<string | null> {
-  ensureBundledPlugins();
+  ensureBundledPlugins(config.get().disabledPlugins ?? []);
   const extractMs = await ensureDshExtractedAsync(() => {
     mainWindow?.webContents.send(IPC.service.onState, { status: 'preparing', mode: null, url: null, pid: null });
   });
@@ -184,6 +249,7 @@ async function startServer(): Promise<string | null> {
     log,
     env: { ...process.env },
     onState: () => broadcastServiceState(),
+    onProgress: (progress) => broadcastProgress(progress),
     onExit: (code, signal) => {
       log(`dsh 异常退出（code=${code} signal=${signal}）`);
       notify('Harness 服务已停止', '可从菜单或托盘「重启服务」重新启动。');
@@ -283,12 +349,42 @@ function registerIpc(): void {
     broadcastConfig();
   });
 
+  // 插件开关
+  ipcMain.handle(IPC.plugins.list, () => listBundledPlugins(config.get().disabledPlugins ?? []));
+  ipcMain.handle(IPC.plugins.setEnabled, async (_event, enabledIds: string[]) => {
+    const disabledPlugins = BUNDLED_PLUGIN_IDS.filter((id) => !enabledIds.includes(id));
+    config.update({ disabledPlugins });
+    ensureBundledPlugins(disabledPlugins);
+    await restartServer();
+    broadcastConfig();
+    return config.get();
+  });
+
+  // 手机远程网关
+  ipcMain.handle(IPC.remote.status, () => remoteStatus());
+  ipcMain.handle(IPC.remote.setEnabled, (_event, enabled: boolean) => applyRemoteEnabled(enabled));
+  ipcMain.handle(IPC.remote.regenerateToken, () => regenerateRemoteToken());
+  ipcMain.handle(IPC.remote.qr, async () => {
+    const st = remoteStatus();
+    if (!st.running || !st.url) return null;
+    return qrDataUrl(`${st.url}?token=${st.token}`);
+  });
+
   // 更新
   ipcMain.handle(IPC.update.checkDsh, () => checkDsh());
   ipcMain.handle(IPC.update.upgradeDsh, () => upgradeDsh());
   ipcMain.handle(IPC.update.checkShell, () =>
     checkGithubRelease(config.get().githubRepo ?? 'leonis77/DeepseekHarnessDesktop', app.getVersion())
   );
+  ipcMain.handle(IPC.update.shellState, () => shellUpdaterState());
+  ipcMain.handle(IPC.update.shellCheck, async () => {
+    if (!updaterSupported()) throw new Error('当前为便携版/开发态，不支持静默自更新，请使用「前往下载」。');
+    await checkShellUpdate();
+  });
+  ipcMain.handle(IPC.update.shellDownload, async () => {
+    await downloadShellUpdate();
+  });
+  ipcMain.on(IPC.update.shellInstall, () => installShellUpdate());
 }
 
 const gotLock = app.requestSingleInstanceLock();
@@ -301,6 +397,15 @@ if (!gotLock) {
     app.setAppUserModelId('com.local.harness-ui');
     config.setAutoLaunch(config.get().autoLaunch);
     applyPet(config.get().pet);
+
+    initAutoUpdater({
+      onState: (s) => mainWindow?.webContents.send(IPC.update.onShellState, s),
+      onNotify: (title, body) => notify(title, body),
+      log,
+    });
+
+    // 上次开启了远程访问：恢复网关
+    if (config.get().remoteEnabled) void applyRemoteEnabled(true);
 
     registerBuiltinExtensions(registry, {
       restart: () => void restartServer(),
@@ -382,6 +487,10 @@ if (!gotLock) {
   app.on('before-quit', () => {
     quitting = true;
     void server?.stop();
+    if (remoteGateway) {
+      void remoteGateway.stop();
+      remoteGateway = null;
+    }
   });
 
   app.on('window-all-closed', () => {

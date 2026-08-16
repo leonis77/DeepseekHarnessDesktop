@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { DEFAULT_PET } from '../../../shared/types';
-import type { AppConfig, BootstrapState, CommandDescriptor, ServiceState } from '../../../shared/types';
+import type { AppConfig, BootstrapState, CommandDescriptor, ServiceState, StartupProgress } from '../../../shared/types';
 
 export interface ShellState {
   appVersion: string;
   service: ServiceState;
   config: AppConfig;
   commands: CommandDescriptor[];
+  progress: StartupProgress;
   ready: boolean;
 }
 
@@ -25,6 +26,7 @@ const INITIAL: ShellState = {
     pet: { ...DEFAULT_PET },
   },
   commands: [],
+  progress: { phase: 'idle', percent: 0, label: '', elapsedMs: 0 },
   ready: false,
 };
 
@@ -41,22 +43,27 @@ export function useShell(): {
     const offState = window.harnessShell.onServiceState((service) => {
       if (!disposed) setState((prev) => ({ ...prev, service }));
     });
+    const offProgress = window.harnessShell.onServiceProgress((progress) => {
+      if (!disposed) setState((prev) => ({ ...prev, progress }));
+    });
     const offConfig = window.harnessShell.onSettingsChanged((config) => {
       if (!disposed) setState((prev) => ({ ...prev, config }));
     });
     window.harnessShell.getBootstrap().then((b: BootstrapState) => {
       if (disposed) return;
-      setState({
+      setState((prev) => ({
         appVersion: b.appVersion,
         service: b.service,
         config: b.config,
         commands: b.commands,
+        progress: prev.progress,
         ready: true,
-      });
+      }));
     });
     return () => {
       disposed = true;
       offState();
+      offProgress();
       offConfig();
     };
   }, []);

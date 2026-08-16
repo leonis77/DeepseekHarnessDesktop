@@ -3,8 +3,11 @@ import type {
   AppConfig,
   BackgroundConfig,
   DshVersionInfo,
+  PluginState,
   ProfileInfo,
+  RemoteStatus,
   ServiceState,
+  ShellUpdaterState,
   TerminalResult,
   UpdateStatus,
 } from '../../../shared/types';
@@ -38,8 +41,20 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
   const [shellStatus, setShellStatus] = useState<UpdateStatus | null>(null);
   const [checkingShell, setCheckingShell] = useState(false);
 
+  const [plugins, setPlugins] = useState<PluginState[]>([]);
+  const [remote, setRemote] = useState<RemoteStatus | null>(null);
+  const [remoteQr, setRemoteQr] = useState<string | null>(null);
+  const [remoteBusy, setRemoteBusy] = useState(false);
+  const [shellState, setShellState] = useState<ShellUpdaterState | null>(null);
+  const [shellActionBusy, setShellActionBusy] = useState(false);
+
   useEffect(() => {
     void window.harnessShell.profiles.list().then(setProfiles);
+    void window.harnessShell.plugins.list().then(setPlugins);
+    void window.harnessShell.remote.status().then(refreshRemote);
+    void window.harnessShell.update.shellState().then(setShellState);
+    const off = window.harnessShell.update.onShellState(setShellState);
+    return off;
   }, []);
 
   const save = async (patch: Partial<AppConfig>): Promise<void> => {
@@ -95,6 +110,56 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
       setShellStatus(await window.harnessShell.update.checkShell());
     } finally {
       setCheckingShell(false);
+    }
+  };
+
+  const refreshRemote = async (s?: RemoteStatus): Promise<void> => {
+    const st = s ?? (await window.harnessShell.remote.status());
+    setRemote(st);
+    setRemoteQr(st.running ? await window.harnessShell.remote.qr() : null);
+  };
+
+  const toggleRemote = async (enabled: boolean): Promise<void> => {
+    setRemoteBusy(true);
+    try {
+      await refreshRemote(await window.harnessShell.remote.setEnabled(enabled));
+    } finally {
+      setRemoteBusy(false);
+    }
+  };
+
+  const regenerateRemote = async (): Promise<void> => {
+    setRemoteBusy(true);
+    try {
+      await refreshRemote(await window.harnessShell.remote.regenerateToken());
+    } finally {
+      setRemoteBusy(false);
+    }
+  };
+
+  const togglePlugin = async (id: string, enabled: boolean): Promise<void> => {
+    const next = plugins.map((p) => (p.id === id ? { ...p, enabled } : p));
+    setPlugins(next);
+    await window.harnessShell.plugins.setEnabled(next.filter((p) => p.enabled).map((p) => p.id));
+  };
+
+  const shellCheck = async (): Promise<void> => {
+    setShellActionBusy(true);
+    try {
+      await window.harnessShell.update.shellCheck();
+    } catch (e) {
+      setShellState((prev) => ({ ...(prev ?? { supported: false, state: 'idle', version: null, percent: 0, error: null }), error: e instanceof Error ? e.message : String(e) }));
+    } finally {
+      setShellActionBusy(false);
+    }
+  };
+
+  const shellDownload = async (): Promise<void> => {
+    setShellActionBusy(true);
+    try {
+      await window.harnessShell.update.shellDownload();
+    } finally {
+      setShellActionBusy(false);
     }
   };
 
@@ -398,6 +463,24 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
       </section>
 
       <section className="settings-card">
+        <h3>插件</h3>
+        <p className="hint">内置插件开关，切换后自动重启服务生效。</p>
+        {plugins.map((p) => (
+          <label className="switch-row" key={p.id}>
+            <span title={p.description}>
+              {p.name}
+              <span className="muted"> · {p.description}</span>
+            </span>
+            <input
+              type="checkbox"
+              checked={p.enabled}
+              onChange={(e) => void togglePlugin(p.id, e.target.checked)}
+            />
+          </label>
+        ))}
+      </section>
+
+      <section className="settings-card">
         <h3>快捷键</h3>
         <div className="kv">
           <span>命令面板</span>
@@ -440,6 +523,47 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
       </section>
 
       <section className="settings-card">
+        <h3>远程访问（手机）</h3>
+        <p className="hint">在局域网内用手机扫码访问桌面端 Harness。网关需 token 认证，仅在同网段可用。</p>
+        <label className="switch-row">
+          <span>开启远程访问</span>
+          <input
+            type="checkbox"
+            checked={remote?.enabled ?? false}
+            disabled={remoteBusy}
+            onChange={(e) => void toggleRemote(e.target.checked)}
+          />
+        </label>
+        {remote?.enabled && (
+          <>
+            {remote.running ? (
+              <>
+                <div className="remote-box">
+                  {remoteQr && <img className="remote-qr" src={remoteQr} alt="扫码访问" />}
+                  <div className="remote-info">
+                    <div className="kv">
+                      <span>访问地址</span>
+                      <span className="mono">{remote.url}</span>
+                    </div>
+                    <div className="kv">
+                      <span>访问 token</span>
+                      <span className="mono">{remote.token}</span>
+                    </div>
+                    <button className="btn" onClick={() => void regenerateRemote()} disabled={remoteBusy}>
+                      重新生成 token
+                    </button>
+                  </div>
+                </div>
+                <p className="hint">手机与电脑连同一 WiFi，用浏览器/相机扫左侧二维码即可访问。</p>
+              </>
+            ) : (
+              <p className="hint">远程访问已开启，但网关未运行（可能启动失败）。{remote.error ? `错误：${remote.error}` : ''}</p>
+            )}
+          </>
+        )}
+      </section>
+
+      <section className="settings-card">
         <h3>更新</h3>
         <div className="kv">
           <span>dsh 版本</span>
@@ -463,22 +587,52 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
         {upgradeResult && <pre className="term-output">{upgradeResult.stdout || upgradeResult.stderr}</pre>}
 
         <div className="update-divider" />
-        <button className="btn" onClick={() => void checkShell()} disabled={checkingShell}>
-          {checkingShell ? '检查中…' : '检查壳更新'}
-        </button>
-        {shellStatus && (
-          <p className="hint">
-            {shellStatus.error
-              ? `检查失败：${shellStatus.error}`
-              : shellStatus.available
-                ? `有新版本 ${shellStatus.version}`
-                : '已是最新版本'}
-            {shellStatus.available && shellStatus.url && (
-              <button className="btn" onClick={() => window.harnessShell.openExternal(shellStatus.url as string)}>
-                前往下载
+        {shellState?.supported ? (
+          <>
+            <p className="hint">
+              {shellState.state === 'idle' && '启动后会自动在后台静默检查更新。'}
+              {shellState.state === 'checking' && '正在检查更新…'}
+              {shellState.state === 'not-available' && '已是最新版本'}
+              {shellState.state === 'available' && `发现新版本 ${shellState.version}，后台下载中…`}
+              {shellState.state === 'downloading' && `正在下载 ${shellState.version}（${shellState.percent}%）…`}
+              {shellState.state === 'downloaded' && `新版本 ${shellState.version} 已下载，退出时自动安装。`}
+              {shellState.state === 'error' && `更新检查失败：${shellState.error}`}
+            </p>
+            <button className="btn" onClick={() => void shellCheck()} disabled={shellActionBusy || shellState.state === 'checking' || shellState.state === 'downloading'}>
+              检查更新
+            </button>
+            {shellState.state === 'available' && (
+              <button className="btn" onClick={() => void shellDownload()} disabled={shellActionBusy}>
+                立即下载
               </button>
             )}
-          </p>
+            {shellState.state === 'downloaded' && (
+              <button className="btn" onClick={() => window.harnessShell.update.shellInstall()}>
+                重启并安装
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <button className="btn" onClick={() => void checkShell()} disabled={checkingShell}>
+              {checkingShell ? '检查中…' : '检查壳更新'}
+            </button>
+            {shellStatus && (
+              <p className="hint">
+                {shellStatus.error
+                  ? `检查失败：${shellStatus.error}`
+                  : shellStatus.available
+                    ? `有新版本 ${shellStatus.version}`
+                    : '已是最新版本'}
+                {shellStatus.available && shellStatus.url && (
+                  <button className="btn" onClick={() => window.harnessShell.openExternal(shellStatus.url as string)}>
+                    前往下载
+                  </button>
+                )}
+              </p>
+            )}
+            <p className="hint">便携版不支持静默自更新，请下载新版覆盖。</p>
+          </>
         )}
       </section>
 

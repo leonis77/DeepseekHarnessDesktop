@@ -13,6 +13,7 @@
     "icon": "node scripts/make-icon.mjs",
     "smoke": "tsx scripts/smoke-test.ts",
     "smoke:bundled": "tsx scripts/smoke-bundled.ts",
+    "smoke:remote": "tsx scripts/remote-smoke.ts",
     "vendor": "node scripts/copy-dsh.mjs",
     "plugins": "node scripts/bundle-plugins.mjs",
     "dist": "npm run vendor && npm run plugins && npm run build && electron-builder --win",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.2.0",
+    "@types/qrcode": "^1.5.6",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^4.7.0",
@@ -45,6 +47,11 @@
     ],
     "asar": true,
     "afterPack": "scripts/after-pack.cjs",
+    "publish": {
+      "provider": "github",
+      "owner": "leonis77",
+      "repo": "DeepseekHarnessDesktop"
+    },
     "win": {
       "target": [
         {
@@ -73,5 +80,9 @@
     "portable": {
       "artifactName": "Harness-UI-Portable-${version}.exe"
     }
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "qrcode": "^1.5.4"
   }
 }

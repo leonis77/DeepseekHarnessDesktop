@@ -1,6 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
 import { IPC, type ShellApi } from '../shared/ipc';
-import type { ServiceState, SettingsUpdate } from '../shared/types';
+import type { ServiceState, SettingsUpdate, ShellUpdaterState, StartupProgress } from '../shared/types';
 
 /** 暴露给 Shell UI 的类型化 API（window.harnessShell）。 */
 const api: ShellApi = {
@@ -21,6 +21,11 @@ const api: ShellApi = {
     const listener = (_event: IpcRendererEvent, value: ServiceState): void => cb(value);
     ipcRenderer.on(IPC.service.onState, listener);
     return () => ipcRenderer.removeListener(IPC.service.onState, listener);
+  },
+  onServiceProgress: (cb) => {
+    const listener = (_event: IpcRendererEvent, value: StartupProgress): void => cb(value);
+    ipcRenderer.on(IPC.service.onProgress, listener);
+    return () => ipcRenderer.removeListener(IPC.service.onProgress, listener);
   },
 
   listCommands: () => ipcRenderer.invoke(IPC.commands.list),
@@ -74,10 +79,31 @@ const api: ShellApi = {
     scan: () => ipcRenderer.invoke(IPC.mcp.scan),
   },
 
+  plugins: {
+    list: () => ipcRenderer.invoke(IPC.plugins.list),
+    setEnabled: (enabledIds: string[]) => ipcRenderer.invoke(IPC.plugins.setEnabled, enabledIds),
+  },
+
+  remote: {
+    status: () => ipcRenderer.invoke(IPC.remote.status),
+    setEnabled: (enabled: boolean) => ipcRenderer.invoke(IPC.remote.setEnabled, enabled),
+    regenerateToken: () => ipcRenderer.invoke(IPC.remote.regenerateToken),
+    qr: () => ipcRenderer.invoke(IPC.remote.qr),
+  },
+
   update: {
     checkDsh: () => ipcRenderer.invoke(IPC.update.checkDsh),
     upgradeDsh: () => ipcRenderer.invoke(IPC.update.upgradeDsh),
     checkShell: () => ipcRenderer.invoke(IPC.update.checkShell),
+    shellState: () => ipcRenderer.invoke(IPC.update.shellState),
+    shellCheck: () => ipcRenderer.invoke(IPC.update.shellCheck),
+    shellDownload: () => ipcRenderer.invoke(IPC.update.shellDownload),
+    shellInstall: () => ipcRenderer.send(IPC.update.shellInstall),
+    onShellState: (cb) => {
+      const listener = (_event: IpcRendererEvent, value: ShellUpdaterState): void => cb(value);
+      ipcRenderer.on(IPC.update.onShellState, listener);
+      return () => ipcRenderer.removeListener(IPC.update.onShellState, listener);
+    },
   },
 };
 

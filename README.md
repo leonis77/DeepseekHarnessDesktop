@@ -63,6 +63,10 @@ Harness UI 把 DeepSeek Harness 的网页界面包装成一个**原生桌面应�
 | 桌面宠物 | 可定制形象/名字/大小/动画/气泡短语，点击/双击/右键互动，联动服务状态 |
 | 多 Profile | 列出 `profiles/` 下所有 profile，切换即重启 |
 | 快捷键自定义 | 命令面板、面板切换的快捷键可在设置里改 |
+| 插件可控 | 设置 → 插件，逐个开关 6 个内置插件，切换即重启生效 |
+| 冷启动进度条 | 启动阶段显示「解压 → 启动 → 加载插件」进度与耗时 |
+| 静默自更新 | 安装版后台静默检查+下载，退出时自动装新版（electron-updater） |
+| 手机远程访问 | 设置 → 远程访问，同网段扫码用手机操作桌面端（token 认证网关） |
 | 更新 | dsh 版本检测 + 一键升级；壳自更新（GitHub Release） |
 | 会话管理 | 删除（两步确认）/ 定位 / 复制路径 |
 | 自包含 | dsh 已打进 exe，用 Electron 内置 Node 运行，免装 Node/npm |
@@ -106,8 +110,11 @@ src/
 │  ├─ sessions.ts       枚举 + 删除会话目录（带路径白名单）
 │  ├─ mcp.ts            扫描 settings.yaml 的 mcp 段
 │  ├─ update.ts         dsh 版本检测 / 升级 / GitHub Release 检测
+│  ├─ updater.ts        壳静默自更新（electron-updater + GitHub Releases）
+│  ├─ remote.ts         手机远程网关（token 认证反向代理，HTTP + WebSocket）
+│  ├─ qr.ts             二维码生成（远程访问扫码）
 │  ├─ pet.ts            桌面宠物窗口管理
-│  ├─ plugins.ts        内置插件激活（写入 profile）
+│  ├─ plugins.ts        内置插件激活（写入 profile，支持禁用）
 │  └─ extensions/       扩展注册表 + 内置扩展
 ├─ preload/index.ts     contextBridge 类型化桥（window.harnessShell）
 ├─ preload/pet.ts       宠物窗口专用桥（拖拽/配置/服务状态）
@@ -118,7 +125,7 @@ src/
 │     ├─ utils/         keys（快捷键解析）/ backgrounds（渐变预设）
 │     ├─ panels/        面板系统（registry + 5 面板 + 容器）
 │     └─ components/    标题栏/活动栏/命令面板/状态栏/背景/对话视图(webview)/设置
-└─ shared/              主进程与 UI 共享的 IPC 契约 + 类型
+└─ shared/              主进程与 UI 共享的 IPC 契约 + 类型 + 插件目录
 ```
 
 ```
@@ -129,6 +136,7 @@ scripts/bundle-plugins.mjs 插件安装脚本（plugins.json → vendor/dsh）
 scripts/make-icon.mjs   图标生成（纯 Node 手写 PNG/ICO）
 scripts/smoke-test.ts   开发路径冒烟测试（系统 Node + 全局 dsh）
 scripts/smoke-bundled.ts 自包含冒烟测试（Electron Node + 内置 dsh + 插件）
+scripts/remote-smoke.ts 远程网关冒烟测试（认证 / HTTP 代理 / WebSocket）
 ```
 
 ---
@@ -205,14 +213,22 @@ registry.addCommand({
 
 ## 发布更新
 
-壳的「检查更新」已接通 GitHub Release：发版后自动检测最新版并引导下载。
+发版走 GitHub Actions（推 `v*` tag 自动构建 + 发布）或手动两步：
 
-1. 推送代码到 GitHub 后，打开仓库页面，点右侧 **Releases** → **Create a new release**
-2. **Tag** 填 `v0.1.0`（需比 `package.json` 的 `version` 递增，如 `v0.1.1`）
-3. 标题随意，正文可写更新说明
-4. 把 `dist/Harness-UI-Setup-<version>.exe` 拖到 **Attach binaries** 区域上传
-5. 点 **Publish release** 发布
-6. 之后应用内「设置 → 更新 → 检查壳更新」即可检测到新版本
+**自动（推荐）**
+
+1. 改 `package.json` 的 `version` 并提交推送
+2. 打 tag 并推送：`git tag v0.1.1 && git push origin v0.1.1`
+3. GitHub Actions 自动构建安装版 + 便携版，并把 `latest.yml` / `.blockmap` 一并发布到 Release
+
+**手动**
+
+1. 打开仓库 **Releases** → **Create a new release**
+2. **Tag** 填 `v0.1.1`（比 `package.json` 递增）
+3. 上传 `dist/Harness-UI-Setup-<version>.exe`、同名 `.blockmap`、`dist/latest.yml`、便携版 exe
+4. 点 **Publish release**
+
+发布后：**安装版**启动后静默检查 → 后台下载 → 退出时自动安装；**便携版**不支持静默更新，在「设置 → 更新 → 检查壳更新」里手动下载覆盖。
 
 ---
 
@@ -225,6 +241,7 @@ registry.addCommand({
 | `npm run build` | 构建 `out/`（main + preload + renderer） |
 | `npm run smoke` | 开发路径冒烟测试（attach/spawn/进程清理） |
 | `npm run smoke:bundled` | 自包含冒烟测试（Electron Node + 内置 dsh + 插件） |
+| `npm run smoke:remote` | 远程网关冒烟测试（认证 / HTTP 代理 / WebSocket） |
 | `npm run vendor` | 复制全局 dsh 到 `vendor/dsh`（`-- --force` 强制重拷） |
 | `npm run plugins` | 把 `plugins.json` 里的插件装进 `vendor/dsh` |
 | `npm run dist` | 打包安装版 + 便携版（含 vendor + plugins + build） |
@@ -266,7 +283,10 @@ registry.addCommand({
 
 - [ ] 侧边栏面板深接：会话标题 / 任务（解析 zstd jsonl）、文件树编辑器、MCP 管理
 - [ ] 原生集成扩展：文件拖拽、终端多会话、剪贴板图片
-- [x] 自动更新：接入 GitHub Release（检测最新版 + 引导下载）
+- [x] 自动更新：GitHub Release（静默后台下载 + 退出自动安装，安装版）
+- [x] 插件可控面板：设置里逐个开关内置插件
+- [x] 冷启动进度条：解压 / 启动 / 加载插件进度与耗时
+- [x] 手机远程访问：token 认证网关 + 扫码（同网段）
 - [ ] 主题增强：更多背景预设、自定义 CSS、主题分享
 - [ ] 会话导入导出 / 批量管理
 - [ ] 内置任务板（`dsh-web-ui`，需 GitHub 可达时补）

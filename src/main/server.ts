@@ -5,6 +5,7 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
+import type { StartupProgress } from '../shared/types';
 
 const LOOPBACK = '127.0.0.1';
 const DEFAULT_ATTACH_PORT = 3080;
@@ -22,6 +23,7 @@ export interface DshServerOptions {
   env?: NodeJS.ProcessEnv;
   onExit?: (code: number | null, signal: string | null) => void;
   onState?: (status: ServerStatus, mode: ServerMode | null) => void;
+  onProgress?: (progress: StartupProgress) => void;
   nodeBin?: string;
   dshBin?: string;
   useElectronNode?: boolean;
@@ -208,6 +210,7 @@ export class DshServer {
   env: NodeJS.ProcessEnv | null;
   onExit?: (code: number | null, signal: string | null) => void;
   onState?: (status: ServerStatus, mode: ServerMode | null) => void;
+  onProgress?: (progress: StartupProgress) => void;
   nodeBin: string;
   dshBin: string | null;
   useElectronNode: boolean;
@@ -216,6 +219,9 @@ export class DshServer {
   mode: ServerMode | null = null;
   status: ServerStatus = 'idle';
   private _stopping = false;
+  private _bootStart = 0;
+  private _progressTimer: NodeJS.Timeout | null = null;
+  private _progressPercent = 0;
 
   constructor(options: DshServerOptions = {}) {
     this.port = options.port ?? 0;
@@ -226,10 +232,23 @@ export class DshServer {
     this.env = options.env ?? null;
     this.onExit = options.onExit;
     this.onState = options.onState;
+    this.onProgress = options.onProgress;
     this.nodeBin = options.nodeBin ?? resolveNodeBin();
     this.dshBin = options.dshBin ?? resolveDshBin();
     this.useElectronNode =
       options.useElectronNode ?? (electronResourcesPath() !== undefined && this.nodeBin === process.execPath);
+  }
+
+  private emitProgress(phase: StartupProgress['phase'], percent: number, label: string): void {
+    this._progressPercent = percent;
+    this.onProgress?.({ phase, percent, label, elapsedMs: Date.now() - this._bootStart });
+  }
+
+  private clearProgressTimer(): void {
+    if (this._progressTimer) {
+      clearInterval(this._progressTimer);
+      this._progressTimer = null;
+    }
   }
 
   private setStatus(status: ServerStatus): void {
@@ -239,6 +258,7 @@ export class DshServer {
 
   /** 启动：先尝试连接现有实例，否则拉起新进程。返回最终 URL。 */
   async start(): Promise<string> {
+    this._bootStart = Date.now();
     this.setStatus('starting');
     if (this.dshBin) {
       const url = `http://${LOOPBACK}:${this.attachPort}/`;
@@ -246,6 +266,7 @@ export class DshServer {
         this.mode = 'attach';
         this.url = url;
         this.setStatus('attached');
+        this.emitProgress('ready', 100, '已连接现有实例');
         this.log(`已连接现有实例：${url}（不重复启动服务）`);
         return url;
       }
@@ -280,6 +301,15 @@ export class DshServer {
 
       let outputTail = '';
       let resolved = false;
+      let linesSeen = 0;
+
+      // 冷启动进度：起步 + 逐行/计时缓慢推进到 88%，就绪后跳到 100%。
+      this.emitProgress('spawning', 12, '正在启动服务进程…');
+      this._progressTimer = setInterval(() => {
+        if (resolved) return;
+        this._progressPercent = Math.min(88, this._progressPercent + 1);
+        this.emitProgress('loading', this._progressPercent, `加载插件与模型…（已用时 ${Math.round((Date.now() - this._bootStart) / 1000)}s）`);
+      }, 800);
 
       const onData = (chunk: Buffer, isError: boolean): void => {
         const text = chunk.toString();
@@ -288,9 +318,19 @@ export class DshServer {
           const trimmed = line.trim();
           if (!trimmed) continue;
           this.log(`[dsh${isError ? ' stderr' : ''}] ${trimmed}`);
+          linesSeen += 1;
           if (!isError && !resolved) {
             const match = trimmed.match(URL_LINE);
-            if (match) this.url = match[1];
+            if (match) {
+              this.url = match[1];
+              this._progressPercent = Math.max(this._progressPercent, 88);
+              this.emitProgress('loading', this._progressPercent, '服务已监听，等待前端就绪…');
+            }
+          }
+          // 有输出说明在推进：按行数小幅抬升进度（不覆盖上面就绪态）
+          if (!resolved && this._progressPercent < 88) {
+            this._progressPercent = Math.min(88, 12 + linesSeen * 2);
+            this.emitProgress('loading', this._progressPercent, `加载插件与模型…（已用时 ${Math.round((Date.now() - this._bootStart) / 1000)}s）`);
           }
         }
       };
@@ -299,14 +339,17 @@ export class DshServer {
       child.stderr?.on('data', (chunk) => onData(chunk as Buffer, true));
       child.on('error', (error) => {
         this.child = null;
+        this.clearProgressTimer();
         if (!this._stopping && !resolved) {
           resolved = true;
           this.setStatus('error');
+          this.emitProgress('error', this._progressPercent, '启动失败');
           reject(new Error(`无法启动 dsh 进程：${error.message}`));
         }
       });
       child.on('exit', (code, signal) => {
         this.child = null;
+        this.clearProgressTimer();
         if (!this._stopping) {
           this.log(`dsh 进程退出（code=${code} signal=${signal}）`);
           this.setStatus('stopped');
@@ -318,8 +361,10 @@ export class DshServer {
       const finish = (): void => {
         if (resolved) return;
         resolved = true;
+        this.clearProgressTimer();
         const tail = outputTail.slice(-4000) || '(无输出)';
         this.setStatus('error');
+        this.emitProgress('error', this._progressPercent, '启动超时');
         void this.stop();
         reject(new Error(`dsh 服务在 ${Math.round(this.timeoutMs / 1000)} 秒内未就绪。\n尾部输出：\n${tail}`));
       };
@@ -329,8 +374,10 @@ export class DshServer {
         if (this.url) {
           if (await waitForHttp(this.url, 3000)) {
             resolved = true;
+            this.clearProgressTimer();
             this.mode = 'spawn';
             this.setStatus('running');
+            this.emitProgress('ready', 100, '服务就绪');
             this.log(`服务就绪：${this.url}`);
             resolve(this.url);
             return;

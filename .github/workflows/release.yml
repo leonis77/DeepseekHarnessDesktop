@@ -43,5 +43,7 @@ jobs:
         with:
           files: |
             dist/Harness-UI-Setup-*.exe
+            dist/Harness-UI-Setup-*.exe.blockmap
+            dist/latest.yml
             dist/Harness-UI-Portable-*.exe
           generate_release_notes: true

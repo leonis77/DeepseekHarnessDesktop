@@ -301,6 +301,35 @@ body {
   }
 }
 
+/* ── 冷启动进度条 ── */
+.boot-progress {
+  position: relative;
+  width: min(360px, 70vw);
+  height: 8px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.boot-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), #8b5cf6);
+  border-radius: 999px;
+  transition: width 0.4s ease;
+}
+
+.boot-progress-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  color: #fff;
+  mix-blend-mode: difference;
+}
+
 /* ── 侧边面板 ── */
 .panel-container {
   position: relative;
@@ -828,6 +857,37 @@ body {
 .update-divider {
   border-top: 1px solid var(--border);
   margin-top: 12px;
+}
+
+/* ── 远程访问 ── */
+.remote-box {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 10px 0;
+}
+
+.remote-qr {
+  width: 168px;
+  height: 168px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #fff;
+  flex: none;
+}
+
+.remote-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.remote-info .kv {
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.remote-info .mono {
+  word-break: break-all;
 }
 
 .saved-toast {
