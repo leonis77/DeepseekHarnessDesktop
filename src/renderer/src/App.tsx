@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Component, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useShell } from './hooks/useShell';
 import { applyTheme } from './hooks/useTheme';
 import { matchesKey } from './utils/keys';
@@ -14,6 +14,26 @@ import SettingsPanel from './components/SettingsPanel';
 import SessionsPanel from './panels/SessionsPanel';
 
 type MainView = 'harness' | 'settings' | 'sessions';
+
+/** 渲染错误边界：捕获渲染崩溃，避免「一片空白」，显示可读错误。 */
+class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null };
+  static getDerivedStateFromError(error: Error) {
+    return { error };
+  }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ padding: 40, color: '#e5e7eb', background: '#0b0f17', height: '100vh', overflow: 'auto' }}>
+          <h2>界面渲染出错</h2>
+          <pre style={{ whiteSpace: 'pre-wrap', color: '#f87171' }}>{String(this.state.error?.message || this.state.error)}</pre>
+          <button onClick={() => this.setState({ error: null })}>重试</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function App() {
   const { state, restart, updateSettings } = useShell();
@@ -88,7 +108,7 @@ export default function App() {
   }, [state.config.keybindings]);
 
   return (
-    <>
+    <ErrorBoundary>
       <Background config={state.config.background} imageDataUrl={imageDataUrl} />
       <div className="app">
         <TitleBar onOpenPalette={() => setPaletteOpen(true)} />
@@ -129,6 +149,6 @@ export default function App() {
         <StatusBar service={state.service} appVersion={state.appVersion} />
         {paletteOpen && <CommandPalette commands={state.commands} onClose={() => setPaletteOpen(false)} />}
       </div>
-    </>
+    </ErrorBoundary>
   );
 }

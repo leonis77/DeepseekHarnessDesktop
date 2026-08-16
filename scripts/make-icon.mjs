@@ -89,22 +89,63 @@ for (let y = 0; y < SIZE; y++) {
   }
 }
 
-const png = encodePng(SIZE, SIZE, pixels);
+const png256 = encodePng(SIZE, SIZE, pixels);
 
-// ICO 文件（Vista+ 支持内嵌 PNG）
-const header = Buffer.alloc(6);
-header.writeUInt16LE(0, 0); // reserved
-header.writeUInt16LE(1, 2); // type: icon
-header.writeUInt16LE(1, 4); // count
-const entry = Buffer.alloc(16);
-entry[0] = 0; entry[1] = 0; // 256×256
-entry.writeUInt16LE(1, 4); // planes
-entry.writeUInt16LE(32, 6); // bpp
-entry.writeUInt32LE(png.length, 8);
-entry.writeUInt32LE(22, 12); // offset
-const ico = Buffer.concat([header, entry, png]);
+// 下采样：生成多尺寸图标（Windows 任务栏/资源管理器需要 16/24/32/48/64/128/256）
+function downscale(src, srcSize, dstSize) {
+  const out = Buffer.alloc(dstSize * dstSize * 4);
+  const ratio = srcSize / dstSize;
+  for (let dy = 0; dy < dstSize; dy++) {
+    for (let dx = 0; dx < dstSize; dx++) {
+      let r = 0, g = 0, b = 0, a = 0, count = 0;
+      const x0 = Math.floor(dx * ratio), x1 = Math.min(srcSize, Math.ceil((dx + 1) * ratio));
+      const y0 = Math.floor(dy * ratio), y1 = Math.min(srcSize, Math.ceil((dy + 1) * ratio));
+      for (let sy = y0; sy < y1; sy++) {
+        for (let sx = x0; sx < x1; sx++) {
+          const i = (sy * srcSize + sx) * 4;
+          const aa = src[i + 3];
+          if (aa === 0) continue;
+          r += src[i]; g += src[i + 1]; b += src[i + 2]; a += aa; count++;
+        }
+      }
+      const o = (dy * dstSize + dx) * 4;
+      if (count > 0) {
+        out[o] = Math.round(r / count); out[o + 1] = Math.round(g / count);
+        out[o + 2] = Math.round(b / count); out[o + 3] = Math.round(a / count);
+      }
+    }
+  }
+  return out;
+}
+
+const SIZES = [16, 24, 32, 48, 64, 128, 256];
+const pngs = [];
+for (const s of SIZES) {
+  const px = s === SIZE ? pixels : downscale(pixels, SIZE, s);
+  pngs.push({ size: s, buf: encodePng(s, s, px) });
+}
+
+// ICO 文件（Vista+ 内嵌 PNG，多尺寸）
+const icoHeader = Buffer.alloc(6);
+icoHeader.writeUInt16LE(0, 0); // reserved
+icoHeader.writeUInt16LE(1, 2); // type: icon
+icoHeader.writeUInt16LE(pngs.length, 4); // count
+const icoEntries = [];
+let offset = 6 + pngs.length * 16;
+for (const p of pngs) {
+  const entry = Buffer.alloc(16);
+  entry[0] = p.size === 256 ? 0 : p.size; // width（0=256）
+  entry[1] = p.size === 256 ? 0 : p.size; // height
+  entry.writeUInt16LE(1, 4); // planes
+  entry.writeUInt16LE(32, 6); // bpp
+  entry.writeUInt32LE(p.buf.length, 8);
+  entry.writeUInt32LE(offset, 12);
+  offset += p.buf.length;
+  icoEntries.push(entry);
+}
+const ico = Buffer.concat([icoHeader, ...icoEntries, ...pngs.map((p) => p.buf)]);
 
 mkdirSync(path.join(__dirname, "..", "resources"), { recursive: true });
-writeFileSync(path.join(__dirname, "..", "resources", "icon.png"), png);
+writeFileSync(path.join(__dirname, "..", "resources", "icon.png"), png256);
 writeFileSync(path.join(__dirname, "..", "resources", "icon.ico"), ico);
-console.log(`已生成 resources/icon.png (${png.length} B) + resources/icon.ico (${ico.length} B)`);
+console.log(`已生成 resources/icon.png (${png256.length} B) + resources/icon.ico (${ico.length} B，${pngs.length} 尺寸)`);
