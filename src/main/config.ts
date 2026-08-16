@@ -1,6 +1,7 @@
 import { app } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import { DEFAULT_PET } from '../shared/types';
 import type { AppConfig } from '../shared/types';
 
 const DEFAULTS: AppConfig = {
@@ -11,7 +12,9 @@ const DEFAULTS: AppConfig = {
   accent: '#3b82f6',
   profile: 'web',
   keybindings: { commandPalette: 'Ctrl+K', togglePanel: 'Ctrl+B' },
-  background: { type: 'gradient', gradientId: 'aurora', color: '#0b0f17', opacity: 1, blur: 0, animated: true, glassBlur: 20, framed: false },
+  githubRepo: 'leonis77/DeepseekHarnessDesktop',
+  background: { type: 'gradient', gradientId: 'aurora', color: '#0b0f17', customColors: ['#3b82f6', '#8b5cf6', '#14b8a6'], opacity: 1, blur: 0, animated: true, glassBlur: 20, noise: true },
+  pet: { ...DEFAULT_PET },
 };
 
 /** 用户配置存储：userData/config.json，内存缓存 + 落盘。 */

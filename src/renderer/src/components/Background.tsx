@@ -7,7 +7,25 @@ interface Props {
   imageDataUrl: string | null;
 }
 
-/** 壳层背景：渐变极光 / 纯色 / 图片，叠加噪点颗粒，营造大厂级质感。 */
+function rgba(hex: string, alpha: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m) return `rgba(59,130,246,${alpha})`;
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+function blobsFor(config: BackgroundConfig) {
+  if (config.gradientId === 'custom') {
+    return [
+      { color: rgba(config.customColors[0], 0.55), x: 20, y: 20, size: 60 },
+      { color: rgba(config.customColors[1], 0.5), x: 70, y: 60, size: 55 },
+      { color: rgba(config.customColors[2], 0.45), x: 45, y: 85, size: 50 },
+    ];
+  }
+  return getPreset(config.gradientId).blobs;
+}
+
+/** 壳层背景：渐变极光（含自定义）/ 纯色 / 图片，叠加噪点颗粒。 */
 export default function Background({ config, imageDataUrl }: Props) {
   const layerStyle: CSSProperties = { opacity: config.opacity };
   let layer: ReactNode;
@@ -23,9 +41,10 @@ export default function Background({ config, imageDataUrl }: Props) {
     layer = <div className="bg-solid" style={{ background: config.color }} />;
   } else {
     const preset = getPreset(config.gradientId);
+    const blobs = blobsFor(config);
     layer = (
       <div className="bg-gradient" style={{ background: preset.base }}>
-        {preset.blobs.map((blob, i) => (
+        {blobs.map((blob, i) => (
           <div
             key={i}
             className={'bg-blob' + (config.animated ? ' animated' : '')}
@@ -46,7 +65,7 @@ export default function Background({ config, imageDataUrl }: Props) {
   return (
     <div className="background-layer" style={layerStyle}>
       {layer}
-      <div className="bg-grain" />
+      {config.noise && <div className="bg-grain" />}
     </div>
   );
 }

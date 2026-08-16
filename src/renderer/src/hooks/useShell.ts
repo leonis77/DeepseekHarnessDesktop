@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { DEFAULT_PET } from '../../../shared/types';
 import type { AppConfig, BootstrapState, CommandDescriptor, ServiceState } from '../../../shared/types';
 
 export interface ShellState {
@@ -20,7 +21,8 @@ const INITIAL: ShellState = {
     accent: '#3b82f6',
     profile: 'web',
     keybindings: { commandPalette: 'Ctrl+K', togglePanel: 'Ctrl+B' },
-    background: { type: 'gradient', gradientId: 'aurora', color: '#0b0f17', opacity: 1, blur: 0, animated: true, glassBlur: 20, framed: false },
+    background: { type: 'gradient', gradientId: 'aurora', color: '#0b0f17', customColors: ['#3b82f6', '#8b5cf6', '#14b8a6'], opacity: 1, blur: 0, animated: true, glassBlur: 20, noise: true },
+    pet: { ...DEFAULT_PET },
   },
   commands: [],
   ready: false,
@@ -39,6 +41,9 @@ export function useShell(): {
     const offState = window.harnessShell.onServiceState((service) => {
       if (!disposed) setState((prev) => ({ ...prev, service }));
     });
+    const offConfig = window.harnessShell.onSettingsChanged((config) => {
+      if (!disposed) setState((prev) => ({ ...prev, config }));
+    });
     window.harnessShell.getBootstrap().then((b: BootstrapState) => {
       if (disposed) return;
       setState({
@@ -52,6 +57,7 @@ export function useShell(): {
     return () => {
       disposed = true;
       offState();
+      offConfig();
     };
   }, []);
 

@@ -9,6 +9,7 @@ import type {
   UpdateStatus,
 } from '../../../shared/types';
 import { gradientPresets, presetPreviewCss } from '../utils/backgrounds';
+import { PET_SKINS } from '../../../shared/types';
 
 interface Props {
   service: ServiceState;
@@ -26,6 +27,7 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
   const [profile, setProfile] = useState(config.profile);
   const [keybindings, setKeybindings] = useState(config.keybindings);
   const [background, setBackground] = useState(config.background);
+  const [pet, setPet] = useState(config.pet);
   const [profiles, setProfiles] = useState<ProfileInfo[]>([]);
   const [saved, setSaved] = useState(false);
 
@@ -54,6 +56,12 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
     const next = { ...background, ...patch };
     setBackground(next);
     void save({ background: next });
+  };
+
+  const savePet = (patch: Partial<AppConfig['pet']>): void => {
+    const next = { ...pet, ...patch };
+    setPet(next);
+    void save({ pet: next });
   };
 
   const changeProfile = async (name: string): Promise<void> => {
@@ -164,6 +172,7 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
         </div>
 
         {background.type === 'gradient' && (
+          <>
           <div className="swatch-grid">
             {gradientPresets.map((p) => (
               <button
@@ -177,6 +186,25 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
               </button>
             ))}
           </div>
+
+          <div className="custom-gradient">
+            <span className="muted">自定义渐变（改任意颜色即切换）</span>
+            <div className="custom-colors">
+              {background.customColors.map((c, i) => (
+                <input
+                  key={i}
+                  type="color"
+                  value={c}
+                  onChange={(e) => {
+                    const next = [...background.customColors] as [string, string, string];
+                    next[i] = e.target.value;
+                    saveBackground({ gradientId: 'custom', customColors: next });
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+          </>
         )}
 
         {background.type === 'color' && (
@@ -252,13 +280,91 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
         </div>
 
         <label className="switch-row">
-          <span>对话区留白（浮动卡片，露出背景）</span>
+          <span>噪点颗粒</span>
           <input
             type="checkbox"
-            checked={background.framed}
-            onChange={(e) => saveBackground({ framed: e.target.checked })}
+            checked={background.noise}
+            onChange={(e) => saveBackground({ noise: e.target.checked })}
           />
         </label>
+      </section>
+
+      <section className="settings-card">
+        <h3>桌面宠物</h3>
+        <label className="switch-row">
+          <span>显示宠物</span>
+          <input type="checkbox" checked={pet.enabled} onChange={(e) => savePet({ enabled: e.target.checked })} />
+        </label>
+
+        {pet.enabled && (
+          <>
+            <div className="swatch-grid">
+              {PET_SKINS.map((s) => (
+                <button
+                  key={s.id}
+                  className={'swatch' + (pet.skin === s.id && !pet.customEmoji ? ' active' : '')}
+                  onClick={() => savePet({ skin: s.id, customEmoji: '' })}
+                  title={s.name}
+                >
+                  <span className="swatch-preview pet-emoji">{s.emoji}</span>
+                  <span className="swatch-name">{s.name}</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="kv">
+              <span>自定义形象</span>
+              <input
+                className="kbd-input"
+                value={pet.customEmoji}
+                placeholder="任意 emoji / 字符"
+                onChange={(e) => savePet({ customEmoji: e.target.value })}
+              />
+            </div>
+            <div className="kv">
+              <span>名字</span>
+              <input
+                className="kbd-input"
+                value={pet.name}
+                placeholder="给宠物起个名"
+                onChange={(e) => savePet({ name: e.target.value })}
+              />
+            </div>
+            <div className="kv slider-row">
+              <span>大小</span>
+              <input
+                type="range"
+                min={50}
+                max={200}
+                value={Math.round(pet.size * 100)}
+                onChange={(e) => savePet({ size: Number(e.target.value) / 100 })}
+              />
+              <span className="mono">{Math.round(pet.size * 100)}%</span>
+            </div>
+            <div className="kv">
+              <span>动画</span>
+              <select
+                value={pet.animation}
+                onChange={(e) => savePet({ animation: e.target.value as AppConfig['pet']['animation'] })}
+              >
+                <option value="bob">呼吸浮动</option>
+                <option value="float">轻柔摇摆</option>
+                <option value="bounce">弹跳</option>
+                <option value="none">静止</option>
+              </select>
+            </div>
+            <div className="pet-tips">
+              <span className="muted">气泡短语（每行一句）</span>
+              <textarea
+                className="pet-tips-input"
+                rows={4}
+                value={pet.tips.join('\n')}
+                onChange={(e) => savePet({ tips: e.target.value.split('\n').filter((t) => t.trim()) })}
+              />
+            </div>
+          </>
+        )}
+        <p className="hint">点击：蹦跶/旋转/撒特效+冒泡 · 双击：兴奋 · 悬停：发光 · 拖动：移动 · 右上 ×：关闭</p>
       </section>
 
       <section className="settings-card">

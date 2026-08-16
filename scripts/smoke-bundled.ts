@@ -42,6 +42,34 @@ async function main(): Promise<void> {
   }
   fs.rmSync(path.join(smokeHome, 'profiles', 'node_modules'), { recursive: true, force: true });
 
+  // 激活内置插件（等价于 ensureBundledPlugins），验证插件挂载后 dsh 仍能正常启动
+  const BUNDLED = ['dsh-plugin-genui', 'oh-my-dsh', 'dsh-voice-webspeech', 'dsh-message-edit', 'dsh-git-status', 'dsh-vision-router'];
+  const pkgPath = path.join(smokeHome, 'profiles', 'web', 'package.json');
+  if (fs.existsSync(pkgPath)) {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as {
+      dependencies?: Record<string, string>;
+      dsh?: { profile?: { bundles?: string[] } };
+    };
+    const deps = pkg.dependencies ?? {};
+    const bundles = pkg.dsh?.profile?.bundles ?? [];
+    let changed = false;
+    for (const p of BUNDLED) {
+      if (!bundles.includes(p)) {
+        bundles.push(p);
+        changed = true;
+      }
+      if (!(p in deps)) {
+        deps[p] = '*';
+        changed = true;
+      }
+    }
+    if (changed) {
+      pkg.dependencies = deps;
+      pkg.dsh = { ...(pkg.dsh ?? {}), profile: { ...(pkg.dsh?.profile ?? {}), bundles } };
+      fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2), 'utf8');
+    }
+  }
+
   const server = new DshServer({
     nodeBin: electronExe,
     dshBin: bundledBin,

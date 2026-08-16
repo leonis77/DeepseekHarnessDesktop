@@ -14,7 +14,9 @@ import { readClipboard, writeClipboard } from './clipboard';
 import { listProfiles } from './profiles';
 import { listSessions, removeSession } from './sessions';
 import { scanMcp } from './mcp';
-import { checkDsh, upgradeDsh, checkShellUpdate } from './update';
+import { checkDsh, upgradeDsh, checkGithubRelease } from './update';
+import { applyPet, movePet, hidePet, sendPetServiceState } from './pet';
+import { ensureBundledPlugins } from './plugins';
 import { IPC } from '../shared/ipc';
 import type { BootstrapState, ServiceState } from '../shared/types';
 
@@ -138,11 +140,17 @@ function refreshMenu(): void {
 function broadcastServiceState(): void {
   const state = serviceState();
   mainWindow?.webContents.send(IPC.service.onState, state);
+  sendPetServiceState(state);
   refreshTray();
   refreshMenu();
 }
 
+function broadcastConfig(): void {
+  mainWindow?.webContents.send(IPC.settings.onChanged, config.get());
+}
+
 async function startServer(): Promise<string | null> {
+  ensureBundledPlugins();
   server = new DshServer({
     port: 0,
     profile: config.get().profile,
@@ -205,7 +213,9 @@ function registerIpc(): void {
   ipcMain.handle(IPC.settings.get, () => config.get());
   ipcMain.handle(IPC.settings.set, (_event, patch: Partial<import('../shared/types').AppConfig>) => {
     if (patch && typeof patch.autoLaunch === 'boolean') config.setAutoLaunch(patch.autoLaunch);
-    return config.update(patch ?? {});
+    const updated = config.update(patch ?? {});
+    if (patch && patch.pet) applyPet(updated.pet);
+    return updated;
   });
   ipcMain.on(IPC.shell.openExternal, (_event, url: string) => {
     if (/^https?:/i.test(url)) void shell.openExternal(url);
@@ -237,10 +247,21 @@ function registerIpc(): void {
   ipcMain.handle(IPC.sessions.remove, (_event, target: string) => removeSession(target));
   ipcMain.handle(IPC.mcp.scan, () => scanMcp());
 
+  // 宠物窗口
+  ipcMain.handle('pet:getConfig', () => config.get().pet);
+  ipcMain.on('pet:move', (_event, dx: number, dy: number) => movePet(dx, dy));
+  ipcMain.on('pet:close', () => {
+    hidePet();
+    config.update({ pet: { ...config.get().pet, enabled: false } });
+    broadcastConfig();
+  });
+
   // 更新
   ipcMain.handle(IPC.update.checkDsh, () => checkDsh());
   ipcMain.handle(IPC.update.upgradeDsh, () => upgradeDsh());
-  ipcMain.handle(IPC.update.checkShell, () => checkShellUpdate(config.get().updateFeedUrl ?? '', app.getVersion()));
+  ipcMain.handle(IPC.update.checkShell, () =>
+    checkGithubRelease(config.get().githubRepo ?? 'leonis77/DeepseekHarnessDesktop', app.getVersion())
+  );
 }
 
 const gotLock = app.requestSingleInstanceLock();
@@ -252,6 +273,7 @@ if (!gotLock) {
   app.whenReady().then(() => {
     app.setAppUserModelId('com.local.harness-ui');
     config.setAutoLaunch(config.get().autoLaunch);
+    applyPet(config.get().pet);
 
     registerBuiltinExtensions(registry, {
       restart: () => void restartServer(),

@@ -28,6 +28,11 @@ const api: ShellApi = {
 
   getSettings: () => ipcRenderer.invoke(IPC.settings.get),
   setSettings: (update: SettingsUpdate) => ipcRenderer.invoke(IPC.settings.set, update),
+  onSettingsChanged: (cb) => {
+    const listener = (_event: IpcRendererEvent, config: import('../shared/types').AppConfig): void => cb(config);
+    ipcRenderer.on(IPC.settings.onChanged, listener);
+    return () => ipcRenderer.removeListener(IPC.settings.onChanged, listener);
+  },
 
   openExternal: (url: string) => ipcRenderer.send(IPC.shell.openExternal, url),
   openDevTools: () => ipcRenderer.send(IPC.shell.openDevTools),

@@ -91,7 +91,7 @@ export default function App() {
           {activePanel && <PanelContainer panel={activePanel} onClose={() => setActivePanelId(null)} />}
           <main className="content">
             {view === 'harness' ? (
-              <HarnessView service={state.service} framed={state.config.background.framed} />
+              <HarnessView service={state.service} />
             ) : (
               <SettingsPanel
                 service={state.service}

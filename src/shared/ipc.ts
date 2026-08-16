@@ -34,6 +34,7 @@ export const IPC = {
   settings: {
     get: 'settings:get',
     set: 'settings:set',
+    onChanged: 'settings:changed',
   },
   shell: {
     openExternal: 'shell:open-external',
@@ -94,6 +95,7 @@ export interface ShellApi {
 
   getSettings(): Promise<AppConfig>;
   setSettings(update: SettingsUpdate): Promise<AppConfig>;
+  onSettingsChanged(cb: (config: AppConfig) => void): () => void;
 
   openExternal(url: string): void;
   openDevTools(): void;

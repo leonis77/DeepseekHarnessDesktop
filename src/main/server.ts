@@ -105,8 +105,7 @@ export function resolveNodeBin(): string {
   if (process.env.DSH_DESKTOP_NODE && fs.existsSync(process.env.DSH_DESKTOP_NODE)) {
     return process.env.DSH_DESKTOP_NODE;
   }
-  // 自包含：dsh 已打包进 resources 时，用 Electron 内置 Node 跑（免系统 Node）
-  if (bundledDshDir()) return process.execPath;
+  // 优先复用本机系统 Node（检测本地环境）
   try {
     const result = spawnSync('where', ['node'], { encoding: 'utf8' });
     if (result.status === 0) {
@@ -119,18 +118,15 @@ export function resolveNodeBin(): string {
   } catch {
     /* fall through */
   }
+  // 无系统 Node 时，若有内置 dsh，用 Electron 内置 Node 兜底（零依赖）
+  if (bundledDshDir()) return process.execPath;
   return 'node';
 }
 
 export function resolveDshBin(): string | null {
   const env = process.env.DSH_DESKTOP_DSH_BIN;
   if (env && fs.existsSync(env)) return env;
-  // 自包含：优先使用打包进 resources/dsh 的副本
-  const bundled = bundledDshDir();
-  if (bundled) {
-    const bin = path.join(bundled, 'lib', 'bin.js');
-    if (fs.existsSync(bin)) return bin;
-  }
+  // 优先复用本地全局安装的 dsh（检测本地环境，避免重复内置）
   const candidates = [
     'D:\\node\\node_modules\\@deepseek-ai\\dsh\\lib\\bin.js',
     path.join(process.env.LOCALAPPDATA || '', 'node', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
@@ -158,6 +154,12 @@ export function resolveDshBin(): string | null {
     }
   } catch {
     /* fall through */
+  }
+  // 无本地 dsh 时，用打包进 resources/dsh 的内置副本兜底（零依赖）
+  const bundled = bundledDshDir();
+  if (bundled) {
+    const bin = path.join(bundled, 'lib', 'bin.js');
+    if (fs.existsSync(bin)) return bin;
   }
   return null;
 }

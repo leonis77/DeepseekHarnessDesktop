@@ -268,25 +268,11 @@ body {
 
 /* ── Harness 嵌入视图 ── */
 .harness-frame {
-  display: block;
+  display: flex;
   width: 100%;
   height: 100%;
   border: none;
-  background: #fff;
-}
-
-.harness-frame.framed {
-  position: absolute;
-  top: 12px;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  width: auto;
-  height: auto;
-  border-radius: 12px;
-  border: 1px solid var(--border);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
-  overflow: hidden;
+  background: transparent;
 }
 
 .harness-loading {
@@ -895,6 +881,34 @@ body {
   color: var(--text-muted);
 }
 
+.pet-emoji {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+}
+
+.pet-tips {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 0;
+}
+
+.pet-tips-input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px;
+  font-size: 12px;
+  font-family: inherit;
+  resize: vertical;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 .slider-row {
   gap: 10px;
 }
@@ -906,6 +920,27 @@ body {
 
 .bg-image-controls {
   padding: 6px 0;
+}
+
+.custom-gradient {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+}
+
+.custom-colors {
+  display: flex;
+  gap: 10px;
+}
+
+.custom-colors input[type='color'] {
+  width: 44px;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
 }
 
 .bg-image-path {

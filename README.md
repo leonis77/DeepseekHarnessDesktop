@@ -172,6 +172,37 @@ registry.addCommand({
 
 - 若机器上已有全局 dsh 且不想用内置副本，设环境变量 `DSH_DESKTOP_DSH_BIN` 指向外部 `lib/bin.js`。
 
+### 减重与分发建议 / Slimming & tips
+
+- **减重**：vendor 阶段已剔除运行时用不到的 sourcemap / TS 源码 / 文档 / 测试文件，dsh 从 3.3 万文件 255MB 降到 ~1.2 万文件 ~170MB，便携版解压提速约 3 倍。
+- **推荐安装版**：安装版（assisted 向导，可取消、可选安装目录）安装一次后启动快；便携版是自解压格式，每次启动都要解压一遍，体积越大越慢。
+
+---
+
+## 内置插件 / Bundled Plugins
+
+以下插件随应用内置（声明于 `plugins.json`），首次启动自动激活到 web profile，零依赖可用：
+
+| 插件 | 功能 | 版本 | 作者仓库 |
+| --- | --- | --- | --- |
+| dsh-plugin-genui | 生成式 UI（图表/Mermaid/3D/表单） | 0.12.2 | [deepseek-harness-genui](https://github.com/pengyue-polaron/deepseek-harness-genui) |
+| oh-my-dsh | 插件管理器（一键装/管插件） | 0.1.3 | [amplifthq/oh-my-dsh](https://github.com/amplifthq/oh-my-dsh) |
+| dsh-voice-webspeech | 浏览器语音输入 | 0.1.0 | [anweat/dsh-voice-webspeech](https://github.com/anweat/dsh-voice-webspeech) |
+| dsh-message-edit | 消息编辑 / 重试 / 版本时间线 | 0.2.2 | [Moeblack/dsh-message-edit](https://github.com/Moeblack/dsh-message-edit) |
+| dsh-git-status | git 图（commit DAG / diff / 分支） | 0.1.1 | [Wongzexu/dsh-git-status](https://github.com/Wongzexu/dsh-git-status) |
+| dsh-vision-router | 视觉（免 key 链 + OCR/抠图/截图） | 1.2.3 | [ysr666/dsh-vision-router](https://github.com/ysr666/dsh-vision-router) |
+
+> 增删插件只需改 `plugins.json` + `src/main/plugins.ts`，然后 `npm run plugins && npm run dist`。
+
+### 发布更新 / Release
+
+壳的「检查更新」已接通 GitHub Release：发版后自动检测最新版并引导下载。
+
+1. 推送代码到 GitHub 后，在仓库 **Releases → Draft a new release**
+2. Tag 填 `v0.1.0`（版本号，需比 `package.json` 的 `version` 递增）
+3. 上传 `dist/Harness-UI-Setup-<version>.exe` 作为附件
+4. 发布后，应用内「设置 → 更新 → 检查壳更新」即可检测到新版本
+
 ---
 
 ## 开发
@@ -223,7 +254,7 @@ registry.addCommand({
 
 - [ ] 侧边栏面板深接：会话标题 / 任务（解析 zstd jsonl）、文件树编辑器、MCP 管理
 - [ ] 原生集成扩展：文件拖拽、终端多会话、剪贴板图片
-- [ ] 自动更新：接入 GitHub Releases + electron-updater
+- [x] 自动更新：接入 GitHub Releases（检测最新版 + 引导下载）
 - [ ] 主题增强：更多背景预设、自定义 CSS、主题分享
 - [ ] 会话导入导出 / 批量管理
 - [ ] 多平台：macOS / Linux
@@ -245,6 +276,8 @@ registry.addCommand({
 
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) —— 本项目封装的核心
 - [Electron](https://www.electronjs.org/) / [electron-vite](https://electron-vite.org/) / [React](https://react.dev/) / [Cordis](https://github.com/cordiverse/cordis)
+- 内置插件原作者（见上文「内置插件」）：pengyue-polaron / amplifthq / anweat / Moeblack / Wongzexu / ysr666 —— 感谢这些开源作者
+- 参考生态列表：[awesome-deepseek-harness](https://github.com/0xsline/awesome-deepseek-harness)、[awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)
 
 ---
 

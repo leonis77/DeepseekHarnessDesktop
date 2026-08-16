@@ -23,6 +23,7 @@ export function createShellWindow(options: ShellWindowOptions): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      webviewTag: true,
     },
   });
   win.once('ready-to-show', () => win.show());

@@ -71,3 +71,32 @@ export async function checkShellUpdate(feedUrl: string, currentVersion: string):
     return { available: false, version: null, url: null, error: e instanceof Error ? e.message : String(e) };
   }
 }
+
+/** GitHub Release 最新版检测：拉取 releases/latest，比对 tag，返回 exe 下载链接。 */
+export async function checkGithubRelease(repo: string, currentVersion: string): Promise<UpdateStatus> {
+  if (!repo) return { available: false, version: null, url: null, error: '未配置 GitHub 仓库' };
+  try {
+    const res = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
+      signal: AbortSignal.timeout(8000),
+      headers: { 'User-Agent': 'harness-ui', Accept: 'application/vnd.github+json' },
+    });
+    if (res.status === 404) return { available: false, version: null, url: null, error: '仓库暂无 Release' };
+    if (!res.ok) return { available: false, version: null, url: null, error: `HTTP ${res.status}` };
+    const data = (await res.json()) as {
+      tag_name?: string;
+      html_url?: string;
+      assets?: { browser_download_url: string }[];
+    };
+    const tag = (data.tag_name ?? '').replace(/^v/i, '');
+    const cur = String(currentVersion).replace(/^v/i, '');
+    const exe = data.assets?.find((a) => a.browser_download_url.toLowerCase().endsWith('.exe'));
+    return {
+      available: !!tag && tag !== cur,
+      version: tag || null,
+      url: exe?.browser_download_url || data.html_url || null,
+      error: null,
+    };
+  } catch (e) {
+    return { available: false, version: null, url: null, error: e instanceof Error ? e.message : String(e) };
+  }
+}
