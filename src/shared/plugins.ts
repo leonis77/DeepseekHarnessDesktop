@@ -12,6 +12,7 @@ export const BUNDLED_PLUGINS: BundledPluginInfo[] = [
   { id: 'dsh-message-edit', name: '消息编辑', description: '编辑已发送的消息并重发' },
   { id: 'dsh-git-status', name: 'Git 状态', description: '侧边栏显示仓库状态与提交图' },
   { id: 'dsh-vision-router', name: '视觉路由', description: '按图片内容自动路由到视觉模型' },
+  { id: 'dsh-harness-sidebar', name: '会话管理整合', description: '隐藏原生会话列表，统一到会话管理页' },
 ];
 
 export const BUNDLED_PLUGIN_IDS = BUNDLED_PLUGINS.map((p) => p.id);

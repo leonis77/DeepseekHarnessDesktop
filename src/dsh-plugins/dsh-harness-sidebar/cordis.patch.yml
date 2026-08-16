@@ -1,0 +1,11 @@
+# dsh-harness-sidebar bundle 层：
+# 1) 挂载本插件（客户端在侧栏底部注册「会话管理」入口）
+# 2) 隐藏原生会话/工作区列表（dsh-client-ui-workspace 的 WorkspaceBrowser）
+#    —— 会话管理统一到 Harness UI 的「会话管理」页，避免两套 UI / 缓存不同步
+- insert:
+    - id: harness-sidebar
+      name: dsh-harness-sidebar
+
+# 隐藏原生侧栏列表（若 id 匹配不上，loader 只会告警、不影响启动）
+- id: client-ui-workspace
+  disabled: true
