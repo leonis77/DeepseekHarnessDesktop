@@ -24,9 +24,10 @@ interface Props {
   appVersion: string;
   onRestart(): void;
   onUpdateSettings(patch: Partial<AppConfig>): Promise<AppConfig>;
+  onOpenSessions(): void;
 }
 
-export default function SettingsPanel({ service, config, appVersion, onRestart, onUpdateSettings }: Props) {
+export default function SettingsPanel({ service, config, appVersion, onRestart, onUpdateSettings, onOpenSessions }: Props) {
   const [autoLaunch, setAutoLaunch] = useState(config.autoLaunch);
   const [closeToTray, setCloseToTray] = useState(config.closeToTray);
   const [idleStopMinutes, setIdleStopMinutes] = useState(config.idleStopMinutes ?? 0);
@@ -622,6 +623,14 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
         </div>
         <button className="btn" onClick={onRestart}>
           重启服务
+        </button>
+      </section>
+
+      <section className="settings-card">
+        <h3>会话管理</h3>
+        <p className="hint">统一在此删除会话（dsh 原生侧栏缓存不同步，删除请以本页为准）。</p>
+        <button className="btn" onClick={onOpenSessions}>
+          打开会话管理
         </button>
       </section>
 

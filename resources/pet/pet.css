@@ -202,6 +202,11 @@ body:hover #close {
   animation: workingSpin 1.4s linear infinite;
 }
 
+#pet.think {
+  animation: thinkPulse 1.8s ease-in-out infinite;
+  filter: brightness(1.08);
+}
+
 #pet.sleeping {
   animation: sleepPulse 3s ease-in-out infinite;
   filter: grayscale(0.4);
@@ -218,6 +223,16 @@ body:hover #close {
   }
   100% {
     transform: translateX(-50%) rotate(360deg);
+  }
+}
+
+@keyframes thinkPulse {
+  0%,
+  100% {
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-4px) scale(1.06);
   }
 }
 

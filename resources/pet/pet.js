@@ -9,6 +9,7 @@ const bubble = document.getElementById('bubble');
 let cfg = { enabled: false, skin: 'cat', customEmoji: '', name: '', size: 1, animation: 'bob', tips: FALLBACK_TIPS };
 let tips = FALLBACK_TIPS;
 let svcState = 'idle';
+let activity = 'idle'; // idle | active | working（Codex 风格 agent 活动联动）
 
 function emoji() {
   if (cfg.customEmoji && cfg.customEmoji.trim()) return cfg.customEmoji.trim();
@@ -123,27 +124,42 @@ setTimeout(() => showTip(), 1500);
 window.petApi.getConfig().then(apply);
 window.petApi.onConfig(apply);
 
-// agent 状态联动：启动中→转圈 / 停止→睡觉 / 出错→变脸
+// agent 状态联动（Codex 风格）：服务状态 + agent 活动两级
 const statusEl = document.getElementById('status');
 function applyServiceState(s) {
   svcState = (s && s.status) || 'idle';
-  pet.classList.remove('working', 'sleeping', 'sad');
+  renderStatus();
+}
+function applyActivity(a) {
+  activity = a || 'idle';
+  renderStatus();
+}
+function renderStatus() {
+  pet.classList.remove('working', 'sleeping', 'sad', 'think');
   statusEl.classList.add('hidden');
-  if (svcState === 'starting') {
-    pet.classList.add('working');
-    statusEl.textContent = '🔄';
+  if (svcState === 'error') {
+    pet.classList.add('sad');
+    statusEl.textContent = '💢';
     statusEl.classList.remove('hidden');
   } else if (svcState === 'stopped') {
     pet.classList.add('sleeping');
     statusEl.textContent = '💤';
     statusEl.classList.remove('hidden');
-  } else if (svcState === 'error') {
-    pet.classList.add('sad');
-    statusEl.textContent = '💢';
+  } else if (svcState === 'starting') {
+    pet.classList.add('working');
+    statusEl.textContent = '🔄';
+    statusEl.classList.remove('hidden');
+  } else if (svcState === 'running' && activity === 'working') {
+    pet.classList.add('think');
+    statusEl.textContent = '🧠';
+    statusEl.classList.remove('hidden');
+  } else if (svcState === 'running' && activity === 'active') {
+    statusEl.textContent = '✨';
     statusEl.classList.remove('hidden');
   }
 }
 window.petApi.onServiceState(applyServiceState);
+window.petApi.onActivity(applyActivity);
 
 // 右键：特殊互动
 pet.addEventListener('contextmenu', (e) => {

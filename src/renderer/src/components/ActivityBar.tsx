@@ -2,10 +2,12 @@ import type { ReactNode } from 'react';
 import { ChatIcon, SettingsIcon, SearchIcon } from '../panels/icons';
 import { panels } from '../panels/registry';
 
+type ShellView = 'harness' | 'settings' | 'sessions';
+
 interface Props {
-  view: 'harness' | 'settings';
+  view: ShellView;
   activePanelId: string | null;
-  onSelectView(view: 'harness' | 'settings'): void;
+  onSelectView(view: ShellView): void;
   onTogglePanel(id: string): void;
   onOpenPalette(): void;
 }

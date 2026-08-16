@@ -70,6 +70,11 @@ export function sendPetServiceState(state: ServiceState): void {
   petWindow?.webContents.send('pet:service-state', state);
 }
 
+/** 把 agent 活动推给宠物窗口（idle/active/working → Codex 风格状态动画）。 */
+export function sendPetActivity(activity: 'idle' | 'active' | 'working'): void {
+  petWindow?.webContents.send('pet:activity', activity);
+}
+
 /** 拖拽：按屏幕位移增量移动窗口。 */
 export function movePet(dx: number, dy: number): void {
   if (!petWindow || petWindow.isDestroyed()) return;

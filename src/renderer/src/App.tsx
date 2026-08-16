@@ -11,8 +11,9 @@ import StatusBar from './components/StatusBar';
 import CommandPalette from './components/CommandPalette';
 import HarnessView from './components/HarnessView';
 import SettingsPanel from './components/SettingsPanel';
+import SessionsPanel from './panels/SessionsPanel';
 
-type MainView = 'harness' | 'settings';
+type MainView = 'harness' | 'settings' | 'sessions';
 
 export default function App() {
   const { state, restart, updateSettings } = useShell();
@@ -92,6 +93,16 @@ export default function App() {
           <main className="content">
             {view === 'harness' ? (
               <HarnessView service={state.service} progress={state.progress} />
+            ) : view === 'sessions' ? (
+              <div className="manage-view">
+                <div className="manage-head">
+                  <button className="btn" onClick={() => setView('settings')}>
+                    ← 返回设置
+                  </button>
+                  <h2>会话管理</h2>
+                </div>
+                <SessionsPanel />
+              </div>
             ) : (
               <SettingsPanel
                 service={state.service}
@@ -99,6 +110,7 @@ export default function App() {
                 appVersion={state.appVersion}
                 onRestart={restart}
                 onUpdateSettings={updateSettings}
+                onOpenSessions={() => setView('sessions')}
               />
             )}
           </main>

@@ -19,7 +19,7 @@ interface ProjectionCache {
           goal?: { val?: unknown };
           todos?: { val?: unknown };
           plan?: { val?: { active?: boolean; wanted?: unknown } | null };
-          sessionStats?: { val?: { turns?: number } | null };
+          sessionStats?: { val?: { turns?: number; openStep?: unknown } | null };
           sessionListMetadata?: { val?: { lastPromptAt?: number | null } | null };
         };
       }
@@ -144,6 +144,26 @@ export function listTasks(): TaskInfo[] {
     });
   }
   return out.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+/**
+ * 推断 agent 当前活动（供桌面宠物联动，Codex 风格）：
+ * - working：有会话存在打开中的 step（正在思考/执行）
+ * - active：最近 5 分钟内有提示（刚聊完/活跃）
+ * - idle：无近期活动
+ */
+export function detectAgentActivity(): 'idle' | 'active' | 'working' {
+  const cache = projectionCache()?.tables?.sessions ?? {};
+  let working = false;
+  let lastPrompt = 0;
+  for (const proj of Object.values(cache)) {
+    if (proj?.rows?.sessionStats?.val?.openStep != null) working = true;
+    const lp = proj?.rows?.sessionListMetadata?.val?.lastPromptAt;
+    if (typeof lp === 'number' && lp > lastPrompt) lastPrompt = lp;
+  }
+  if (working) return 'working';
+  if (lastPrompt && Date.now() - lastPrompt < 5 * 60 * 1000) return 'active';
+  return 'idle';
 }
 
 /** 删除一个会话目录（带路径白名单校验，防止误删 sessions 之外的东西）。 */

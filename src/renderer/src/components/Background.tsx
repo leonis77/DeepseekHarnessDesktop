@@ -7,11 +7,10 @@ interface Props {
   imageDataUrl: string | null;
 }
 
-/** Windows 绝对路径 → file:// URL（打包后 loadFile 同源，视频可直接加载）。 */
+/** Windows 绝对路径 → media://local/ URL（主进程自定义协议，逐段编码保留斜杠）。 */
 function toFileUrl(p: string): string {
-  const normalized = p.replace(/\\/g, '/');
-  if (/^[a-zA-Z]:/.test(normalized)) return 'file:///' + normalized;
-  return 'file://' + normalized;
+  const segs = p.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/');
+  return 'media://local/' + segs;
 }
 
 function rgba(hex: string, alpha: number): string {

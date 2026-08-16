@@ -1222,3 +1222,20 @@ body {
   outline: 2px dashed var(--accent);
   outline-offset: -4px;
 }
+
+/* ── 会话管理页 ── */
+.manage-view {
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+
+.manage-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.manage-head h2 {
+  margin: 0;
+}

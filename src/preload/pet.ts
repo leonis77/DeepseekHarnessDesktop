@@ -14,6 +14,11 @@ contextBridge.exposeInMainWorld('petApi', {
     ipcRenderer.on('pet:service-state', listener);
     return () => ipcRenderer.removeListener('pet:service-state', listener);
   },
+  onActivity: (cb: (activity: 'idle' | 'active' | 'working') => void) => {
+    const listener = (_e: IpcRendererEvent, activity: 'idle' | 'active' | 'working'): void => cb(activity);
+    ipcRenderer.on('pet:activity', listener);
+    return () => ipcRenderer.removeListener('pet:activity', listener);
+  },
   moveBy: (dx: number, dy: number): void => ipcRenderer.send('pet:move', dx, dy),
   close: (): void => ipcRenderer.send('pet:close'),
 });

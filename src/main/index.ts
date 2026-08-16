@@ -1,5 +1,6 @@
-import { app, ipcMain, Menu, shell, dialog, Notification, type BrowserWindow, type Tray } from 'electron';
+import { app, ipcMain, Menu, shell, dialog, Notification, protocol, net, type BrowserWindow, type Tray } from 'electron';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 import { DshServer, ensureDshExtractedAsync } from './server';
 import { AppConfigStore } from './config';
@@ -12,12 +13,12 @@ import { readDir, readFileText, writeFileText, readImageAsDataUrl, pickDirectory
 import { runCommand, openTerminal } from './terminal';
 import { readClipboard, writeClipboard, readClipboardImage, writeClipboardImage } from './clipboard';
 import { listProfiles } from './profiles';
-import { listSessions, listTasks, removeSession } from './sessions';
+import { listSessions, listTasks, removeSession, detectAgentActivity } from './sessions';
 import { scanWallpaperEngine, hasWallpaperEngine } from './wallpaper';
 import { MODEL_PRESETS, readModelApiState, saveModelProvider } from './modelconfig';
 import { scanMcp } from './mcp';
 import { checkDsh, upgradeDsh, checkGithubRelease } from './update';
-import { applyPet, movePet, hidePet, sendPetServiceState } from './pet';
+import { applyPet, movePet, hidePet, sendPetServiceState, sendPetActivity } from './pet';
 import { ensureBundledPlugins, listBundledPlugins } from './plugins';
 import { BUNDLED_PLUGIN_IDS } from '../shared/plugins';
 import { startRemoteGateway, generateToken, type RemoteGateway } from './remote';
@@ -34,6 +35,12 @@ import { IPC } from '../shared/ipc';
 import type { BootstrapState, RemoteStatus, ServiceState, StartupProgress } from '../shared/types';
 
 const APP_NAME = 'Harness UI';
+
+// 自定义协议：渲染层用 media://local/<path> 加载本地视频（动态壁纸），
+// 避免 file:// 在渲染层被拦截/同源限制。
+protocol.registerSchemesAsPrivileged([
+  { scheme: 'media', privileges: { standard: true, secure: true, stream: true, supportFetchAPI: true } },
+]);
 
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -423,11 +430,20 @@ if (!gotLock) {
     config.setAutoLaunch(config.get().autoLaunch);
     applyPet(config.get().pet);
 
+    // 本地媒体协议（动态壁纸视频）
+    protocol.handle('media', (request) => {
+      const filePath = decodeURIComponent(new URL(request.url).pathname.replace(/^\//, ''));
+      return net.fetch(pathToFileURL(filePath).toString());
+    });
+
     initAutoUpdater({
       onState: (s) => mainWindow?.webContents.send(IPC.update.onShellState, s),
       onNotify: (title, body) => notify(title, body),
       log,
     });
+
+    // 桌面宠物 agent 活动联动（Codex 风格）：每 3s 探测一次
+    setInterval(() => sendPetActivity(detectAgentActivity()), 3000);
 
     // 上次开启了远程访问：恢复网关
     if (config.get().remoteEnabled) void applyRemoteEnabled(true);
