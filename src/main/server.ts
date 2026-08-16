@@ -219,7 +219,7 @@ export class DshServer {
     this.port = options.port ?? 0;
     this.attachPort = options.attachPort ?? DEFAULT_ATTACH_PORT;
     this.profile = options.profile ?? 'web';
-    this.timeoutMs = options.timeoutMs ?? 60000;
+    this.timeoutMs = options.timeoutMs ?? 180000;
     this.log = options.log ?? (() => {});
     this.env = options.env ?? null;
     this.onExit = options.onExit;
