@@ -43,6 +43,11 @@ export interface RemoteGatewayOptions {
   token: string;
   port?: number;
   log?: (msg: string) => void;
+  /** 会话/任务管理能力（注入，避免本模块直接依赖 electron）。 */
+  manage?: {
+    data(): { sessions: unknown[]; tasks: unknown[] };
+    remove(path: string): void;
+  };
 }
 
 export interface RemoteGateway {
@@ -120,7 +125,7 @@ function readCookies(header: string | undefined): Record<string, string> {
 }
 
 export function startRemoteGateway(options: RemoteGatewayOptions): Promise<RemoteGateway> {
-  const { getTarget, token, port = 0 } = options;
+  const { getTarget, token, port = 0, manage } = options;
   const log = options.log ?? (() => {});
   const host = '0.0.0.0';
 
@@ -166,6 +171,33 @@ export function startRemoteGateway(options: RemoteGatewayOptions): Promise<Remot
 
     if (!isAuthed(req)) {
       serveLogin(res, false);
+      return;
+    }
+
+    // ── 会话 / 任务管理（手机端同步 + 删除管理）──
+    if (url.pathname === '/__manage') {
+      serveManageHtml(res);
+      return;
+    }
+    if (url.pathname === '/__api/data' && manage) {
+      res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify(manage.data()));
+      return;
+    }
+    if (url.pathname === '/__api/sessions/delete' && req.method === 'POST' && manage) {
+      let body = '';
+      req.on('data', (c) => (body += c));
+      req.on('end', () => {
+        try {
+          const parsed = JSON.parse(body || '{}') as { path?: string };
+          if (parsed.path) manage.remove(parsed.path);
+          res.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: true }));
+        } catch (e) {
+          res.writeHead(400, { 'content-type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: false, error: e instanceof Error ? e.message : String(e) }));
+        }
+      });
       return;
     }
 
@@ -216,6 +248,62 @@ export function startRemoteGateway(options: RemoteGatewayOptions): Promise<Remot
 function serveLogin(res: http.ServerResponse, failed: boolean): void {
   res.writeHead(failed ? 401 : 200, { 'content-type': 'text/html; charset=utf-8' });
   res.end(`<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Harness UI 远程访问</title><style>body{font-family:system-ui;display:flex;height:100vh;margin:0;align-items:center;justify-content:center;background:#0b0f17;color:#e5e7eb}form{background:#111827;padding:32px;border-radius:12px;box-shadow:0 10px 40px #0008}input{padding:10px;border-radius:8px;border:1px solid #374151;background:#1f2937;color:#fff;font-size:16px}button{margin-top:12px;padding:10px 18px;border:0;border-radius:8px;background:#3b82f6;color:#fff;font-size:16px;cursor:pointer}.err{color:#f87171;margin-bottom:8px}</style></head><body><form method="post" action="/__auth"><div class="err">${failed ? 'token 错误，请重试' : ''}</div><p>输入访问 token（可在桌面端「远程访问」设置中查看）</p><input name="token" autocomplete="off" placeholder="token" autofocus><br><button type="submit">进入</button></form></body></html>`);
+}
+
+/** 会话 / 任务管理页（手机端同步 + 删除）。 */
+function serveManageHtml(res: http.ServerResponse): void {
+  res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+  res.end(`<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>会话管理 · Harness UI</title><style>
+body{font-family:system-ui;margin:0;background:#0b0f17;color:#e5e7eb;padding:12px}
+h1{font-size:18px;margin:8px 0}
+.tabs{display:flex;gap:6px;margin:10px 0}
+.tab{flex:1;padding:8px;border:1px solid #374151;border-radius:8px;background:#111827;color:#9ca3af;text-align:center;cursor:pointer}
+.tab.active{color:#fff;border-color:#3b82f6;background:#1f2937}
+.card{background:#111827;border:1px solid #1f2937;border-radius:10px;padding:10px;margin:8px 0}
+.title{font-weight:600;word-break:break-all}
+.meta{font-size:11px;color:#6b7280;margin-top:3px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.del{border:1px solid #7f1d1d;background:#1f1a1a;color:#f87171;border-radius:7px;padding:5px 10px;cursor:pointer;flex:none}
+.del:disabled{opacity:.4}
+.ok{color:#22c55e;font-size:11px}
+.empty{color:#6b7280;text-align:center;padding:24px 0}
+a{color:#60a5fa}
+</style></head><body>
+<h1>会话管理</h1>
+<p style="color:#6b7280;font-size:12px">与桌面端同步（读同一份 DSH 数据）。<a href="/">返回 Harness</a></p>
+<div class="tabs"><div class="tab active" id="tab-sessions" onclick="show('sessions')">会话</div><div class="tab" id="tab-tasks" onclick="show('tasks')">任务</div></div>
+<div id="sessions"></div><div id="tasks" style="display:none"></div>
+<script>
+var cache = null;
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+function show(which){
+  document.getElementById('tab-sessions').className='tab'+(which==='sessions'?' active':'');
+  document.getElementById('tab-tasks').className='tab'+(which==='tasks'?' active':'');
+  document.getElementById('sessions').style.display=which==='sessions'?'':'none';
+  document.getElementById('tasks').style.display=which==='tasks'?'':'none';
+}
+function load(){
+  fetch('/__api/data').then(function(r){return r.json()}).then(function(d){
+    cache=d;
+    render();
+  }).catch(function(e){document.getElementById('sessions').innerHTML='<div class="empty">加载失败：'+esc(e)+'</div>'});
+}
+function render(){
+  var s=cache.sessions||[], t=cache.tasks||[];
+  var sh=document.getElementById('sessions');
+  if(!s.length){sh.innerHTML='<div class="empty">暂无会话</div>';}
+  else{
+    sh.innerHTML=s.map(function(x){return '<div class="card"><div class="row"><div><div class="title">'+esc(x.title)+'</div><div class="meta">'+esc(x.workspace)+(x.turns>0?' · '+x.turns+' 轮':'')+' · '+esc(new Date(x.updatedAt).toLocaleString())+'</div></div><button class="del" data-path="'+esc(x.path)+'">删除</button></div></div>'}).join('');
+    sh.querySelectorAll('.del').forEach(function(b){b.onclick=function(){if(confirm('删除该会话（不可恢复）？')){var btn=b;btn.disabled=true;fetch('/__api/sessions/delete',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({path:btn.dataset.path})}).then(function(r){return r.json()}).then(function(){load()}).catch(function(){btn.disabled=false})}}});
+  }
+  var th=document.getElementById('tasks');
+  if(!t.length){th.innerHTML='<div class="empty">暂无进行中的任务</div>';}
+  else{
+    th.innerHTML=t.map(function(x){return '<div class="card"><div class="title">'+esc(x.sessionTitle)+'</div>'+(x.goal?'<div class="meta">目标：'+esc(x.goal)+'</div>':'')+(x.todos?'<div class="meta">待办：'+esc(x.todos)+'</div>':'')+'<div class="meta">'+esc(x.workspace)+'</div></div>'}).join('');
+  }
+}
+load();
+</script></body></html>`);
 }
 
 function proxyHttp(req: http.IncomingMessage, res: http.ServerResponse, target: string, log: (msg: string) => void, logPath: string): void {

@@ -649,6 +649,10 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
                       <span className="mono">{remote.url}</span>
                     </div>
                     <div className="kv">
+                      <span>会话管理页</span>
+                      <span className="mono">{remote.url}/__manage</span>
+                    </div>
+                    <div className="kv">
                       <span>访问 token</span>
                       <span className="mono">{remote.token}</span>
                     </div>

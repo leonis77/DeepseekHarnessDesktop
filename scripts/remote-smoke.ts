@@ -35,6 +35,10 @@ async function main(): Promise<void> {
     token: 'deadbeefcafebabe',
     port: 0,
     log: () => {},
+    manage: {
+      data: () => ({ sessions: [{ title: '测试会话', path: '/tmp/x', turns: 3 }], tasks: [] }),
+      remove: () => {},
+    },
   });
 
   const base = `http://127.0.0.1:${gateway.port}`;
@@ -65,6 +69,13 @@ async function main(): Promise<void> {
   // 5) 正确 token POST → 302 到 /
   const r5 = await fetch(`${base}/__auth`, { method: 'POST', body: 'token=deadbeefcafebabe', headers: { 'content-type': 'application/x-www-form-urlencoded' }, redirect: 'manual' });
   check('正确 token POST → 302', r5.status === 302);
+
+  // 5b) 会话管理页 / API
+  const r5b = await fetch(`${base}/__manage`, { headers: { cookie: 'harness_remote=deadbeefcafebabe' } });
+  check('管理页可访问', r5b.status === 200 && (await r5b.text()).includes('会话管理'));
+  const r5c = await fetch(`${base}/__api/data`, { headers: { cookie: 'harness_remote=deadbeefcafebabe' } });
+  const data5c = (await r5c.json()) as { sessions: Array<{ title: string }> };
+  check('管理 API 返回会话数据', data5c.sessions?.length === 1 && data5c.sessions[0].title === '测试会话');
 
   // 6) WebSocket upgrade 带 cookie → 转发到上游并回 101
   const wsResult = await new Promise<string>((resolve) => {

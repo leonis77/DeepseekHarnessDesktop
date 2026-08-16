@@ -201,6 +201,13 @@ function remoteStatus(): RemoteStatus {
   };
 }
 
+function remoteManageOptions() {
+  return {
+    data: () => ({ sessions: listSessions(), tasks: listTasks() }),
+    remove: (p: string) => removeSession(p),
+  };
+}
+
 async function applyRemoteEnabled(enabled: boolean): Promise<RemoteStatus> {
   try {
     if (enabled) {
@@ -210,7 +217,7 @@ async function applyRemoteEnabled(enabled: boolean): Promise<RemoteStatus> {
         config.update({ remoteToken: token });
       }
       if (!remoteGateway) {
-        remoteGateway = await startRemoteGateway({ getTarget: () => server?.url ?? null, token, log });
+        remoteGateway = await startRemoteGateway({ getTarget: () => server?.url ?? null, token, log, manage: remoteManageOptions() });
       }
       config.update({ remoteEnabled: true });
     } else {
@@ -234,7 +241,7 @@ async function regenerateRemoteToken(): Promise<RemoteStatus> {
     remoteGateway = null;
   }
   if (config.get().remoteEnabled) {
-    remoteGateway = await startRemoteGateway({ getTarget: () => server?.url ?? null, token, log });
+    remoteGateway = await startRemoteGateway({ getTarget: () => server?.url ?? null, token, log, manage: remoteManageOptions() });
   }
   return remoteStatus();
 }
