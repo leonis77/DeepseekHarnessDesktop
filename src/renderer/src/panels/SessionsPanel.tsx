@@ -4,7 +4,6 @@ import type { SessionInfo } from '../../../shared/types';
 export default function SessionsPanel() {
   const [sessions, setSessions] = useState<SessionInfo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [confirming, setConfirming] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -23,11 +22,9 @@ export default function SessionsPanel() {
   const remove = async (session: SessionInfo): Promise<void> => {
     try {
       await window.harnessShell.sessions.remove(session.path);
-      setConfirming(null);
       reload();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      setConfirming(null);
     }
   };
 
@@ -46,10 +43,8 @@ export default function SessionsPanel() {
 
   const bulkRemove = async (): Promise<void> => {
     try {
-      for (const id of selected) {
-        const s = sessions.find((x) => x.id === id);
-        if (s) await window.harnessShell.sessions.remove(s.path);
-      }
+      const paths = sessions.filter((x) => selected.has(x.id)).map((x) => x.path);
+      await window.harnessShell.sessions.removeMany(paths);
       setSelected(new Set());
       reload();
     } catch (e) {
@@ -117,20 +112,9 @@ export default function SessionsPanel() {
                   >
                     🔍
                   </button>
-                  {confirming === s.id ? (
-                    <>
-                      <button className="icon-btn danger" onClick={() => void remove(s)} title="确认删除">
-                        ✔
-                      </button>
-                      <button className="icon-btn" onClick={() => setConfirming(null)} title="取消">
-                        ✕
-                      </button>
-                    </>
-                  ) : (
-                    <button className="icon-btn danger" onClick={() => setConfirming(s.id)} title="删除">
-                      🗑
-                    </button>
-                  )}
+                  <button className="icon-btn danger" onClick={() => void remove(s)} title="删除">
+                    🗑
+                  </button>
                 </div>
               </div>
             </li>

@@ -1,5 +1,5 @@
 import { app, ipcMain, Menu, shell, dialog, Notification, protocol, net, type BrowserWindow, type Tray } from 'electron';
-import { join } from 'node:path';
+import { join, basename, resolve as resolvePath } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import fs from 'node:fs';
 import { DshServer, ensureDshExtractedAsync } from './server';
@@ -99,6 +99,21 @@ function notify(title: string, body: string): void {
   } catch {
     /* ignore */
   }
+}
+
+/** 删除/覆盖类操作弹原生确认框（S3：全盘浏览，但对破坏性操作确认）。 */
+async function confirmDestructive(message: string, detail: string): Promise<boolean> {
+  const opts = {
+    type: 'warning' as const,
+    buttons: ['取消', '删除'],
+    defaultId: 0,
+    cancelId: 0,
+    title: '确认操作',
+    message,
+    detail,
+  };
+  const result = mainWindow ? await dialog.showMessageBox(mainWindow, opts) : await dialog.showMessageBox(opts);
+  return result.response === 1;
 }
 
 function showWindow(): void {
@@ -338,12 +353,23 @@ function registerIpc(): void {
   ipcMain.handle(IPC.fs.homeDir, () => homeDir());
   ipcMain.handle(IPC.fs.readDir, (_event, dirPath: string) => readDir(dirPath));
   ipcMain.handle(IPC.fs.readFile, (_event, filePath: string) => readFileText(filePath));
-  ipcMain.handle(IPC.fs.writeFile, (_event, filePath: string, content: string) => writeFileText(filePath, content));
+  ipcMain.handle(IPC.fs.writeFile, async (_event, filePath: string, content: string) => {
+    if (fs.existsSync(filePath)) {
+      if (!(await confirmDestructive('覆盖文件', '将覆盖：\n' + filePath))) return;
+    }
+    writeFileText(filePath, content);
+  });
   ipcMain.handle(IPC.fs.readImage, (_event, filePath: string) => readImageAsDataUrl(filePath));
   ipcMain.handle(IPC.fs.pickDirectory, () => pickDirectory());
   ipcMain.handle(IPC.fs.pickFile, () => pickFile());
   ipcMain.handle(IPC.fs.pickVideoFile, () => pickVideoFile());
-  ipcMain.handle(IPC.fs.copyFilesInto, (_event, dir: string, paths: string[]) => copyFilesInto(dir, paths));
+  ipcMain.handle(IPC.fs.copyFilesInto, async (_event, dir: string, paths: string[]) => {
+    const conflicts = paths.filter((p) => fs.existsSync(join(dir, basename(p))) && resolvePath(p) !== resolvePath(join(dir, basename(p))));
+    if (conflicts.length > 0) {
+      if (!(await confirmDestructive('覆盖文件', `以下 ${conflicts.length} 个文件将被覆盖：\n${conflicts.map((p) => basename(p)).join('\n')}`))) return [];
+    }
+    return copyFilesInto(dir, paths);
+  });
   ipcMain.on(IPC.fs.reveal, (_event, target: string) => revealPath(target));
 
   // 原生集成：终端 / 剪贴板
@@ -359,7 +385,15 @@ function registerIpc(): void {
   ipcMain.handle(IPC.sessions.list, () => listSessions());
   ipcMain.handle(IPC.sessions.tasks, () => listTasks());
   ipcMain.on(IPC.sessions.reveal, (_event, target: string) => revealPath(target));
-  ipcMain.handle(IPC.sessions.remove, (_event, target: string) => removeSession(target));
+  ipcMain.handle(IPC.sessions.remove, async (_event, target: string) => {
+    if (!(await confirmDestructive('删除会话', '将永久删除该会话目录（不可恢复）：\n' + target))) return;
+    removeSession(target);
+  });
+  ipcMain.handle(IPC.sessions.removeMany, async (_event, targets: string[]) => {
+    if (!targets.length) return;
+    if (!(await confirmDestructive('批量删除会话', `将永久删除 ${targets.length} 个会话目录（不可恢复）。`))) return;
+    for (const t of targets) removeSession(t);
+  });
   ipcMain.handle(IPC.mcp.scan, () => scanMcp());
 
   // 动态壁纸（Wallpaper Engine）

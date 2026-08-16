@@ -82,6 +82,7 @@ export const IPC = {
     tasks: 'sessions:tasks',
     reveal: 'sessions:reveal',
     remove: 'sessions:remove',
+    removeMany: 'sessions:remove-many',
   },
   mcp: {
     scan: 'mcp:scan',
@@ -178,6 +179,7 @@ export interface ShellApi {
     tasks(): Promise<TaskInfo[]>;
     reveal(path: string): void;
     remove(path: string): Promise<void>;
+    removeMany(paths: string[]): Promise<void>;
   };
 
   mcp: {

@@ -79,6 +79,7 @@ const api: ShellApi = {
     tasks: () => ipcRenderer.invoke(IPC.sessions.tasks),
     reveal: (p: string) => ipcRenderer.send(IPC.sessions.reveal, p),
     remove: (p: string) => ipcRenderer.invoke(IPC.sessions.remove, p),
+    removeMany: (paths: string[]) => ipcRenderer.invoke(IPC.sessions.removeMany, paths),
   },
 
   mcp: {
