@@ -75,6 +75,7 @@ export interface AppConfig {
   pet: PetConfig;
   updateFeedUrl?: string;
   githubRepo?: string;
+  idleStopMinutes?: number;
   dshBin?: string;
   nodeBin?: string;
 }

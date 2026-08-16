@@ -22,6 +22,7 @@ interface Props {
 export default function SettingsPanel({ service, config, appVersion, onRestart, onUpdateSettings }: Props) {
   const [autoLaunch, setAutoLaunch] = useState(config.autoLaunch);
   const [closeToTray, setCloseToTray] = useState(config.closeToTray);
+  const [idleStopMinutes, setIdleStopMinutes] = useState(config.idleStopMinutes ?? 0);
   const [theme, setTheme] = useState(config.theme);
   const [accent, setAccent] = useState(config.accent);
   const [profile, setProfile] = useState(config.profile);
@@ -125,6 +126,20 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
             }}
           />
         </label>
+        <div className="kv">
+          <span>空闲自动停止 dsh（分钟，0=禁用）</span>
+          <input
+            className="kbd-input"
+            type="number"
+            min={0}
+            value={idleStopMinutes}
+            onChange={(e) => {
+              const v = Math.max(0, Math.floor(Number(e.target.value) || 0));
+              setIdleStopMinutes(v);
+              void save({ idleStopMinutes: v });
+            }}
+          />
+        </div>
       </section>
 
       <section className="settings-card">

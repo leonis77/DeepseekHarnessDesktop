@@ -26,6 +26,8 @@ let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let server: DshServer | null = null;
 let quitting = false;
+let idleTimer: NodeJS.Timeout | null = null;
+let idleStopped = false;
 
 const config = new AppConfigStore();
 const registry = new ExtensionRegistry();
@@ -90,6 +92,27 @@ function toggleWindow(): void {
   else showWindow();
 }
 
+function clearIdleTimer(): void {
+  if (idleTimer) {
+    clearTimeout(idleTimer);
+    idleTimer = null;
+  }
+}
+
+function scheduleIdleStop(): void {
+  clearIdleTimer();
+  const minutes = config.get().idleStopMinutes ?? 0;
+  if (minutes <= 0 || !server) return;
+  idleTimer = setTimeout(() => {
+    if (!server || idleStopped) return;
+    idleStopped = true;
+    log(`空闲 ${minutes} 分钟，自动停止 dsh 以节省内存`);
+    void server.stop();
+    server = null;
+    broadcastServiceState();
+  }, minutes * 60 * 1000);
+}
+
 function showAbout(): void {
   const detail = `版本 ${app.getVersion()}\n\nDeepSeek Harness 的桌面壳应用（Codex 风格，可扩展）。\n数据目录：${app.getPath('userData')}\n日志：${logFile()}`;
   const options = { type: 'info' as const, title: '关于 Harness UI', message: APP_NAME, detail };
@@ -151,9 +174,10 @@ function broadcastConfig(): void {
 
 async function startServer(): Promise<string | null> {
   ensureBundledPlugins();
-  await ensureDshExtractedAsync(() => {
+  const extractMs = await ensureDshExtractedAsync(() => {
     mainWindow?.webContents.send(IPC.service.onState, { status: 'preparing', mode: null, url: null, pid: null });
   });
+  const bootStart = Date.now();
   server = new DshServer({
     port: 0,
     profile: config.get().profile,
@@ -167,7 +191,7 @@ async function startServer(): Promise<string | null> {
   });
   try {
     const url = await server.start();
-    log(`就绪：${url}（模式：${server.mode}）`);
+    log(`[埋点] 解压 ${extractMs}ms，dsh 启动 ${Date.now() - bootStart}ms，就绪：${url}`);
     broadcastServiceState();
     return url;
   } catch (error) {
@@ -331,6 +355,14 @@ if (!gotLock) {
     });
     mainWindow.on('closed', () => {
       mainWindow = null;
+    });
+    mainWindow.on('hide', () => scheduleIdleStop());
+    mainWindow.on('show', () => {
+      clearIdleTimer();
+      if (idleStopped) {
+        idleStopped = false;
+        void startServer();
+      }
     });
     mainWindow.on('maximize', () => mainWindow?.webContents.send(IPC.window.onMaximized, true));
     mainWindow.on('unmaximize', () => mainWindow?.webContents.send(IPC.window.onMaximized, false));

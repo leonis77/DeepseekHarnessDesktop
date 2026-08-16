@@ -108,19 +108,21 @@ function dshArchivePath(): string | null {
   return fs.existsSync(archive) ? archive : null;
 }
 
-/** 首次启动把 resources/dsh.tar.gz 解压到用户目录（之后复用，无需重复解压）。 */
-export async function ensureDshExtractedAsync(onStatus?: (status: 'preparing') => void): Promise<void> {
-  if (extractedDshDir()) return;
+/** 首次启动把 resources/dsh.tar.gz 解压到用户目录（之后复用，无需重复解压）。返回耗时 ms。 */
+export async function ensureDshExtractedAsync(onStatus?: (status: 'preparing') => void): Promise<number> {
+  if (extractedDshDir()) return 0;
   const archive = dshArchivePath();
-  if (!archive) return;
+  if (!archive) return 0;
   const base = extractedDshBase();
   fs.mkdirSync(path.dirname(base), { recursive: true });
   onStatus?.('preparing');
+  const t0 = Date.now();
   await new Promise<void>((resolve, reject) => {
     const child = spawn('tar', ['-xzf', archive, '-C', path.dirname(base)], { windowsHide: true });
     child.on('error', (e) => reject(e));
     child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`tar 解压失败（code=${code}）`))));
   });
+  return Date.now() - t0;
 }
 
 export function bundledDshDir(): string | null {
