@@ -5,6 +5,9 @@ import type {
   DshVersionInfo,
   FileEntry,
   McpScanResult,
+  ModelApiPreset,
+  ModelApiState,
+  ModelProviderConfig,
   PluginState,
   ProfileInfo,
   RemoteStatus,
@@ -13,8 +16,10 @@ import type {
   SettingsUpdate,
   ShellUpdaterState,
   StartupProgress,
+  TaskInfo,
   TerminalResult,
   UpdateStatus,
+  WallpaperEntry,
 } from './types';
 
 /** IPC 通道名（主进程与 preload 共用，避免拼写漂移）。 */
@@ -55,6 +60,8 @@ export const IPC = {
     readImage: 'fs:read-image',
     pickDirectory: 'fs:pick-directory',
     pickFile: 'fs:pick-file',
+    pickVideoFile: 'fs:pick-video-file',
+    copyFilesInto: 'fs:copy-files-into',
     reveal: 'fs:reveal',
   },
   terminal: {
@@ -64,17 +71,29 @@ export const IPC = {
   clipboard: {
     read: 'clipboard:read',
     write: 'clipboard:write',
+    readImage: 'clipboard:read-image',
+    writeImage: 'clipboard:write-image',
   },
   profiles: {
     list: 'profiles:list',
   },
   sessions: {
     list: 'sessions:list',
+    tasks: 'sessions:tasks',
     reveal: 'sessions:reveal',
     remove: 'sessions:remove',
   },
   mcp: {
     scan: 'mcp:scan',
+  },
+  wallpaper: {
+    scan: 'wallpaper:scan',
+    has: 'wallpaper:has',
+  },
+  model: {
+    presets: 'model:presets',
+    state: 'model:state',
+    save: 'model:save',
   },
   plugins: {
     list: 'plugins:list',
@@ -131,6 +150,9 @@ export interface ShellApi {
     readImage(path: string): Promise<string>;
     pickDirectory(): Promise<string | null>;
     pickFile(): Promise<string | null>;
+    pickVideoFile(): Promise<string | null>;
+    copyFilesInto(dir: string, paths: string[]): Promise<string[]>;
+    getPathForFile(file: unknown): string;
     reveal(path: string): void;
   };
 
@@ -142,6 +164,8 @@ export interface ShellApi {
   clipboard: {
     read(): Promise<string>;
     write(text: string): void;
+    readImage(): Promise<string | null>;
+    writeImage(dataUrl: string): void;
   };
 
   profiles: {
@@ -150,12 +174,24 @@ export interface ShellApi {
 
   sessions: {
     list(): Promise<SessionInfo[]>;
+    tasks(): Promise<TaskInfo[]>;
     reveal(path: string): void;
     remove(path: string): Promise<void>;
   };
 
   mcp: {
     scan(): Promise<McpScanResult>;
+  };
+
+  wallpaper: {
+    scan(): Promise<WallpaperEntry[]>;
+    has(): Promise<boolean>;
+  };
+
+  model: {
+    presets(): Promise<ModelApiPreset[]>;
+    state(): Promise<ModelApiState>;
+    save(provider: ModelProviderConfig): Promise<void>;
   };
 
   plugins: {

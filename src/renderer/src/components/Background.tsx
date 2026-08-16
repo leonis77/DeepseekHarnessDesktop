@@ -7,6 +7,13 @@ interface Props {
   imageDataUrl: string | null;
 }
 
+/** Windows 绝对路径 → file:// URL（打包后 loadFile 同源，视频可直接加载）。 */
+function toFileUrl(p: string): string {
+  const normalized = p.replace(/\\/g, '/');
+  if (/^[a-zA-Z]:/.test(normalized)) return 'file:///' + normalized;
+  return 'file://' + normalized;
+}
+
 function rgba(hex: string, alpha: number): string {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return `rgba(59,130,246,${alpha})`;
@@ -30,7 +37,20 @@ export default function Background({ config, imageDataUrl }: Props) {
   const layerStyle: CSSProperties = { opacity: config.opacity };
   let layer: ReactNode;
 
-  if (config.type === 'image' && imageDataUrl) {
+  if (config.type === 'video' && config.videoPath) {
+    layer = (
+      <video
+        key={config.videoPath}
+        className="bg-video"
+        src={toFileUrl(config.videoPath)}
+        autoPlay
+        loop
+        muted
+        playsInline
+        style={{ filter: `blur(${config.blur}px) saturate(1.08)` }}
+      />
+    );
+  } else if (config.type === 'image' && imageDataUrl) {
     layer = (
       <div
         className="bg-image"

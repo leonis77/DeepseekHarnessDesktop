@@ -3,6 +3,9 @@ import type {
   AppConfig,
   BackgroundConfig,
   DshVersionInfo,
+  ModelApiPreset,
+  ModelApiState,
+  ModelProviderConfig,
   PluginState,
   ProfileInfo,
   RemoteStatus,
@@ -10,6 +13,7 @@ import type {
   ShellUpdaterState,
   TerminalResult,
   UpdateStatus,
+  WallpaperEntry,
 } from '../../../shared/types';
 import { gradientPresets, presetPreviewCss } from '../utils/backgrounds';
 import { PET_SKINS } from '../../../shared/types';
@@ -48,6 +52,17 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
   const [shellState, setShellState] = useState<ShellUpdaterState | null>(null);
   const [shellActionBusy, setShellActionBusy] = useState(false);
 
+  // 动态壁纸（Wallpaper Engine）
+  const [weWallpapers, setWeWallpapers] = useState<WallpaperEntry[]>([]);
+  const [weHas, setWeHas] = useState(false);
+  const [weLoaded, setWeLoaded] = useState(false);
+
+  // 模型 / API 配置
+  const [modelPresets, setModelPresets] = useState<ModelApiPreset[]>([]);
+  const [modelState, setModelState] = useState<ModelApiState | null>(null);
+  const [modelForm, setModelForm] = useState<ModelProviderConfig | null>(null);
+  const [modelSaved, setModelSaved] = useState(false);
+
   useEffect(() => {
     void window.harnessShell.profiles.list().then(setProfiles);
     void window.harnessShell.plugins.list().then(setPlugins);
@@ -55,6 +70,12 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
     void window.harnessShell.update.shellState().then(setShellState);
     const off = window.harnessShell.update.onShellState(setShellState);
     return off;
+  }, []);
+
+  useEffect(() => {
+    void window.harnessShell.wallpaper.has().then(setWeHas);
+    void window.harnessShell.model.presets().then(setModelPresets);
+    void window.harnessShell.model.state().then(setModelState);
   }, []);
 
   const save = async (patch: Partial<AppConfig>): Promise<void> => {
@@ -163,6 +184,41 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
     }
   };
 
+  const loadWeWallpapers = async (): Promise<void> => {
+    setWeLoaded(true);
+    setWeWallpapers(await window.harnessShell.wallpaper.scan());
+  };
+
+  const pickLocalVideo = async (): Promise<void> => {
+    const f = await window.harnessShell.fs.pickVideoFile();
+    if (f) saveBackground({ type: 'video', videoPath: f });
+  };
+
+  const useWeWallpaper = (entry: WallpaperEntry): void => {
+    if (entry.filePath) saveBackground({ type: 'video', videoPath: entry.filePath });
+  };
+
+  const startModelForm = (preset: ModelApiPreset): void => {
+    setModelForm({
+      id: preset.id,
+      name: preset.name,
+      baseURL: preset.baseURL,
+      apiKeyRef: preset.apiKeyRef,
+      apiKey: '',
+      models: [...preset.models],
+      input: [...preset.input],
+    });
+    setModelSaved(false);
+  };
+
+  const saveModel = async (): Promise<void> => {
+    if (!modelForm) return;
+    await window.harnessShell.model.save(modelForm);
+    setModelState(await window.harnessShell.model.state());
+    setModelSaved(true);
+    setTimeout(() => setModelSaved(false), 1500);
+  };
+
   return (
     <div className="settings">
       <h2>设置</h2>
@@ -248,6 +304,7 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
             <option value="gradient">渐变（大厂预设）</option>
             <option value="color">纯色</option>
             <option value="image">图片</option>
+            <option value="video">动态壁纸（视频）</option>
           </select>
         </div>
 
@@ -311,6 +368,52 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
               </button>
             )}
             {background.imagePath && <div className="hint mono bg-image-path">{background.imagePath}</div>}
+          </div>
+        )}
+
+        {background.type === 'video' && (
+          <div className="bg-video-controls">
+            <button className="btn" onClick={() => void pickLocalVideo()}>
+              选择本地视频
+            </button>
+            {background.videoPath && (
+              <>
+                <button className="btn" onClick={() => saveBackground({ videoPath: undefined })}>
+                  清除
+                </button>
+                <div className="hint mono bg-image-path">{background.videoPath}</div>
+              </>
+            )}
+
+            <div className="we-wallpaper-block">
+              <div className="we-head">
+                <span className="muted">Wallpaper Engine（video 类型，需已订阅）</span>
+                <button className="btn" onClick={() => void loadWeWallpapers()} disabled={weLoaded}>
+                  {weLoaded ? '扫描中…' : '扫描'}
+                </button>
+              </div>
+              {!weHas && (
+                <p className="hint">
+                  未检测到 Steam Workshop 目录。在 Wallpaper Engine 里订阅视频壁纸后点「扫描」。
+                </p>
+              )}
+              {weWallpapers.length > 0 && (
+                <ul className="we-list">
+                  {weWallpapers.map((w) => (
+                    <li key={w.id} className={w.type !== 'video' ? 'we-item disabled' : 'we-item'}>
+                      <button
+                        className="we-pick"
+                        disabled={w.type !== 'video' || !w.filePath}
+                        onClick={() => useWeWallpaper(w)}
+                      >
+                        <span className="we-title">{w.title || w.id}</span>
+                        <span className="muted">{w.type === 'video' ? 'video' : `暂不支持（${w.type}）`}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
 
@@ -560,6 +663,76 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
               <p className="hint">远程访问已开启，但网关未运行（可能启动失败）。{remote.error ? `错误：${remote.error}` : ''}</p>
             )}
           </>
+        )}
+      </section>
+
+      <section className="settings-card">
+        <h3>模型 / API</h3>
+        <p className="hint">
+          给需要 API 的插件（如视觉路由）配置模型。Key 写入 dsh 的 <span className="mono">.credentials.yaml</span>
+          （热重载，无需重启）；provider 写入 <span className="mono">settings.yaml</span>，保存后可点「重启服务」加载模型。
+        </p>
+        {modelState && modelState.providers.length > 0 && (
+          <ul className="model-configured">
+            {modelState.providers.map((p) => (
+              <li key={p.id}>
+                <span className="mono">{p.id}</span> · {p.name}
+                {p.configured ? <span className="badge ok">已配 Key</span> : <span className="badge">未配 Key</span>}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="model-presets">
+          {modelPresets.map((p) => (
+            <button key={p.id} className="btn" onClick={() => startModelForm(p)}>
+              {p.name}
+            </button>
+          ))}
+        </div>
+        {modelPresets.map((p) => (
+          <p key={p.id} className="hint">
+            {p.name}：{p.hint}
+          </p>
+        ))}
+
+        {modelForm && (
+          <div className="model-form">
+            <div className="kv">
+              <span>provider id</span>
+              <input className="kbd-input" value={modelForm.id} onChange={(e) => setModelForm({ ...modelForm, id: e.target.value })} />
+            </div>
+            <div className="kv">
+              <span>名称</span>
+              <input className="kbd-input" value={modelForm.name} onChange={(e) => setModelForm({ ...modelForm, name: e.target.value })} />
+            </div>
+            <div className="kv">
+              <span>baseURL</span>
+              <input className="kbd-input wide" value={modelForm.baseURL} onChange={(e) => setModelForm({ ...modelForm, baseURL: e.target.value })} />
+            </div>
+            <div className="kv">
+              <span>模型（逗号分隔）</span>
+              <input
+                className="kbd-input wide"
+                value={modelForm.models.join(', ')}
+                onChange={(e) => setModelForm({ ...modelForm, models: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })}
+              />
+            </div>
+            <div className="kv">
+              <span>API Key</span>
+              <input
+                className="kbd-input wide"
+                type="password"
+                placeholder="粘贴 Key（不回显）"
+                value={modelForm.apiKey}
+                onChange={(e) => setModelForm({ ...modelForm, apiKey: e.target.value })}
+              />
+            </div>
+            <button className="btn" onClick={() => void saveModel()}>
+              保存
+            </button>
+            {modelSaved && <span className="saved-inline">已保存 ✓</span>}
+          </div>
         )}
       </section>
 

@@ -54,6 +54,23 @@ export function writeFileText(filePath: string, content: string): void {
   fs.writeFileSync(filePath, content, 'utf8');
 }
 
+/** 把一组文件复制进目标目录（用于拖拽导入文件面板）。返回复制后的文件名列表。 */
+export function copyFilesInto(targetDir: string, filePaths: string[]): string[] {
+  if (!fs.existsSync(targetDir) || !fs.statSync(targetDir).isDirectory()) {
+    throw new Error('目标不是目录');
+  }
+  const copied: string[] = [];
+  for (const src of filePaths) {
+    if (!fs.existsSync(src)) continue;
+    const name = path.basename(src);
+    const dst = path.join(targetDir, name);
+    if (path.resolve(src) === path.resolve(dst)) continue;
+    fs.copyFileSync(src, dst);
+    copied.push(name);
+  }
+  return copied;
+}
+
 export async function pickDirectory(): Promise<string | null> {
   const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
   return result.canceled ? null : (result.filePaths[0] ?? null);
@@ -61,6 +78,17 @@ export async function pickDirectory(): Promise<string | null> {
 
 export async function pickFile(): Promise<string | null> {
   const result = await dialog.showOpenDialog({ properties: ['openFile'] });
+  return result.canceled ? null : (result.filePaths[0] ?? null);
+}
+
+const VIDEO_EXT = ['mp4', 'webm', 'mov', 'mkv', 'avi', 'm4v'];
+
+/** 选择本地视频文件（动态壁纸）。 */
+export async function pickVideoFile(): Promise<string | null> {
+  const result = await dialog.showOpenDialog({
+    properties: ['openFile'],
+    filters: [{ name: '视频', extensions: VIDEO_EXT }],
+  });
   return result.canceled ? null : (result.filePaths[0] ?? null);
 }
 

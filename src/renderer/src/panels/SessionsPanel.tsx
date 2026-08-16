@@ -61,7 +61,8 @@ export default function SessionsPanel() {
                 >
                   <span className="s-title">{s.title}</span>
                   <span className="s-meta">
-                    {s.workspace} · {new Date(s.updatedAt).toLocaleString()}
+                    {s.workspace} · {s.turns > 0 ? `${s.turns} 轮 · ` : ''}
+                    {new Date(s.updatedAt).toLocaleString()}
                   </span>
                 </div>
                 <div className="session-actions">

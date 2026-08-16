@@ -8,11 +8,13 @@ import { registerBuiltinExtensions } from './extensions/builtin';
 import { createShellWindow } from './window';
 import { buildTray, buildTrayMenu } from './tray';
 import { buildAppMenu } from './menu';
-import { readDir, readFileText, writeFileText, readImageAsDataUrl, pickDirectory, pickFile, revealPath, resolveDshHome, homeDir } from './fs';
+import { readDir, readFileText, writeFileText, readImageAsDataUrl, pickDirectory, pickFile, pickVideoFile, copyFilesInto, revealPath, resolveDshHome, homeDir } from './fs';
 import { runCommand, openTerminal } from './terminal';
-import { readClipboard, writeClipboard } from './clipboard';
+import { readClipboard, writeClipboard, readClipboardImage, writeClipboardImage } from './clipboard';
 import { listProfiles } from './profiles';
-import { listSessions, removeSession } from './sessions';
+import { listSessions, listTasks, removeSession } from './sessions';
+import { scanWallpaperEngine, hasWallpaperEngine } from './wallpaper';
+import { MODEL_PRESETS, readModelApiState, saveModelProvider } from './modelconfig';
 import { scanMcp } from './mcp';
 import { checkDsh, upgradeDsh, checkGithubRelease } from './update';
 import { applyPet, movePet, hidePet, sendPetServiceState } from './pet';
@@ -325,6 +327,8 @@ function registerIpc(): void {
   ipcMain.handle(IPC.fs.readImage, (_event, filePath: string) => readImageAsDataUrl(filePath));
   ipcMain.handle(IPC.fs.pickDirectory, () => pickDirectory());
   ipcMain.handle(IPC.fs.pickFile, () => pickFile());
+  ipcMain.handle(IPC.fs.pickVideoFile, () => pickVideoFile());
+  ipcMain.handle(IPC.fs.copyFilesInto, (_event, dir: string, paths: string[]) => copyFilesInto(dir, paths));
   ipcMain.on(IPC.fs.reveal, (_event, target: string) => revealPath(target));
 
   // 原生集成：终端 / 剪贴板
@@ -332,13 +336,27 @@ function registerIpc(): void {
   ipcMain.on(IPC.terminal.open, (_event, cwd?: string) => openTerminal(cwd));
   ipcMain.handle(IPC.clipboard.read, () => readClipboard());
   ipcMain.on(IPC.clipboard.write, (_event, text: string) => writeClipboard(text));
+  ipcMain.handle(IPC.clipboard.readImage, () => readClipboardImage());
+  ipcMain.on(IPC.clipboard.writeImage, (_event, dataUrl: string) => writeClipboardImage(dataUrl));
 
   // 面板数据
   ipcMain.handle(IPC.profiles.list, () => listProfiles());
   ipcMain.handle(IPC.sessions.list, () => listSessions());
+  ipcMain.handle(IPC.sessions.tasks, () => listTasks());
   ipcMain.on(IPC.sessions.reveal, (_event, target: string) => revealPath(target));
   ipcMain.handle(IPC.sessions.remove, (_event, target: string) => removeSession(target));
   ipcMain.handle(IPC.mcp.scan, () => scanMcp());
+
+  // 动态壁纸（Wallpaper Engine）
+  ipcMain.handle(IPC.wallpaper.scan, () => scanWallpaperEngine());
+  ipcMain.handle(IPC.wallpaper.has, () => hasWallpaperEngine());
+
+  // 模型 / API 桌面配置
+  ipcMain.handle(IPC.model.presets, () => MODEL_PRESETS);
+  ipcMain.handle(IPC.model.state, () => readModelApiState());
+  ipcMain.handle(IPC.model.save, (_event, provider: import('../shared/types').ModelProviderConfig) =>
+    saveModelProvider(provider)
+  );
 
   // 宠物窗口
   ipcMain.handle('pet:getConfig', () => config.get().pet);

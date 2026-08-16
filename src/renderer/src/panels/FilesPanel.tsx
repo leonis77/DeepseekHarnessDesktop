@@ -7,6 +7,7 @@ export default function FilesPanel() {
   const [entries, setEntries] = useState<FileEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dragOver, setDragOver] = useState(false);
 
   const cwd = history.length ? history[history.length - 1] : root;
 
@@ -48,8 +49,39 @@ export default function FilesPanel() {
     }
   };
 
+  const onDrop = async (e: React.DragEvent): Promise<void> => {
+    e.preventDefault();
+    setDragOver(false);
+    if (!cwd) return;
+    const paths: string[] = [];
+    for (const file of Array.from(e.dataTransfer.files)) {
+      try {
+        const p = window.harnessShell.fs.getPathForFile(file);
+        if (p) paths.push(p);
+      } catch {
+        /* ignore */
+      }
+    }
+    if (paths.length === 0) return;
+    try {
+      const copied = await window.harnessShell.fs.copyFilesInto(cwd, paths);
+      if (copied.length) setError('');
+      void load(cwd);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    }
+  };
+
   return (
-    <div className="files-panel">
+    <div
+      className={'files-panel' + (dragOver ? ' drag-over' : '')}
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragOver(true);
+      }}
+      onDragLeave={() => setDragOver(false)}
+      onDrop={(e) => void onDrop(e)}
+    >
       <div className="panel-toolbar">
         <button onClick={up} title="上一级" disabled={history.length <= 1}>
           ↑

@@ -12,7 +12,7 @@ export interface ServiceState {
 
 export type ThemeMode = 'dark' | 'light' | 'system';
 
-export type BackgroundType = 'gradient' | 'color' | 'image';
+export type BackgroundType = 'gradient' | 'color' | 'image' | 'video';
 
 export interface BackgroundConfig {
   type: BackgroundType;
@@ -20,6 +20,7 @@ export interface BackgroundConfig {
   color: string;
   customColors: [string, string, string]; // 自定义渐变（gradientId='custom' 时生效）
   imagePath?: string;
+  videoPath?: string; // 动态壁纸：本地视频 / WE 视频壁纸路径
   opacity: number; // 0..1
   blur: number; // 0..40（图片背景）
   animated: boolean; // 渐变极光动画
@@ -81,6 +82,41 @@ export interface AppConfig {
   disabledPlugins?: string[];
   remoteEnabled?: boolean;
   remoteToken?: string;
+  modelProviders?: ModelProviderConfig[];
+}
+
+/** ── 模型/API 桌面配置 ── */
+export interface ModelProviderConfig {
+  id: string;
+  name: string;
+  baseURL: string;
+  apiKeyRef: string; // 凭据引用名（写入 .credentials.yaml），如 ZAI_API_KEY
+  apiKey: string; // 仅保存时提交，读取时主进程不回显明文
+  models: string[]; // model id 列表
+  input: ('text' | 'image')[];
+}
+
+export interface ModelApiPreset {
+  id: string;
+  name: string;
+  baseURL: string;
+  apiKeyRef: string;
+  models: string[];
+  input: ('text' | 'image')[];
+  hint: string;
+}
+
+export interface ModelApiState {
+  providers: Array<{ id: string; name: string; baseURL: string; apiKeyRef: string; models: string[]; input: string[]; configured: boolean }>;
+}
+
+/** ── 动态壁纸（Wallpaper Engine）── */
+export interface WallpaperEntry {
+  id: string;
+  title: string;
+  type: 'video' | 'web' | 'scene' | 'unknown';
+  filePath: string | null;
+  previewPath: string | null;
 }
 
 export type SettingsUpdate = Partial<AppConfig>;
@@ -121,6 +157,18 @@ export interface SessionInfo {
   workspace: string;
   updatedAt: number;
   path: string;
+  turns: number;
+}
+
+/** ── 面板：任务（来自会话投影缓存）── */
+export interface TaskInfo {
+  sessionId: string;
+  sessionTitle: string;
+  workspace: string;
+  goal: string | null;
+  todos: string | null;
+  planActive: boolean;
+  updatedAt: number;
 }
 
 /** ── 面板：profile ── */

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron';
+import { contextBridge, ipcRenderer, webUtils, type IpcRendererEvent } from 'electron';
 import { IPC, type ShellApi } from '../shared/ipc';
 import type { ServiceState, SettingsUpdate, ShellUpdaterState, StartupProgress } from '../shared/types';
 
@@ -52,6 +52,9 @@ const api: ShellApi = {
     readImage: (filePath: string) => ipcRenderer.invoke(IPC.fs.readImage, filePath),
     pickDirectory: () => ipcRenderer.invoke(IPC.fs.pickDirectory),
     pickFile: () => ipcRenderer.invoke(IPC.fs.pickFile),
+    pickVideoFile: () => ipcRenderer.invoke(IPC.fs.pickVideoFile),
+    copyFilesInto: (dir: string, paths: string[]) => ipcRenderer.invoke(IPC.fs.copyFilesInto, dir, paths),
+    getPathForFile: (file: unknown) => webUtils.getPathForFile(file as File),
     reveal: (target: string) => ipcRenderer.send(IPC.fs.reveal, target),
   },
 
@@ -63,6 +66,8 @@ const api: ShellApi = {
   clipboard: {
     read: () => ipcRenderer.invoke(IPC.clipboard.read),
     write: (text: string) => ipcRenderer.send(IPC.clipboard.write, text),
+    readImage: () => ipcRenderer.invoke(IPC.clipboard.readImage),
+    writeImage: (dataUrl: string) => ipcRenderer.send(IPC.clipboard.writeImage, dataUrl),
   },
 
   profiles: {
@@ -71,12 +76,24 @@ const api: ShellApi = {
 
   sessions: {
     list: () => ipcRenderer.invoke(IPC.sessions.list),
+    tasks: () => ipcRenderer.invoke(IPC.sessions.tasks),
     reveal: (p: string) => ipcRenderer.send(IPC.sessions.reveal, p),
     remove: (p: string) => ipcRenderer.invoke(IPC.sessions.remove, p),
   },
 
   mcp: {
     scan: () => ipcRenderer.invoke(IPC.mcp.scan),
+  },
+
+  wallpaper: {
+    scan: () => ipcRenderer.invoke(IPC.wallpaper.scan),
+    has: () => ipcRenderer.invoke(IPC.wallpaper.has),
+  },
+
+  model: {
+    presets: () => ipcRenderer.invoke(IPC.model.presets),
+    state: () => ipcRenderer.invoke(IPC.model.state),
+    save: (provider) => ipcRenderer.invoke(IPC.model.save, provider),
   },
 
   plugins: {
