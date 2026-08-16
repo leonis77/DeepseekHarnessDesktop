@@ -506,6 +506,33 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
               />
             </div>
             <div className="kv">
+              <span>自定义 spritesheet</span>
+              <button
+                className="btn"
+                onClick={async () => {
+                  const f = await window.harnessShell.fs.pickFile();
+                  if (f) savePet({ spritePath: f });
+                }}
+              >
+                选择图片
+              </button>
+            </div>
+            {pet.spritePath && (
+              <div className="kv">
+                <span></span>
+                <span className="mono hint" style={{ wordBreak: 'break-all' }}>
+                  {pet.spritePath}
+                  <button className="btn" onClick={() => savePet({ spritePath: undefined })}>
+                    清除
+                  </button>
+                </span>
+              </div>
+            )}
+            <p className="hint">
+              支持 petdex 格式 spritesheet：8 列 × 9 行状态帧（idle / running / waving / jumping / failed / waiting /
+              running / review）。设置后优先于 emoji 形象，宠物随 agent 状态切换对应帧动画。
+            </p>
+            <div className="kv">
               <span>名字</span>
               <input
                 className="kbd-input"

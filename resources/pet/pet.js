@@ -4,24 +4,82 @@ const PARTICLES = ['✨', '💖', '⭐', '🌟', '💫'];
 const HAPPY = ['好开心！🎉', '再来一次！', '耶！', '哈哈哈~', '最喜欢你了💕'];
 
 const pet = document.getElementById('pet');
+const emojiEl = document.getElementById('emoji');
+const spriteEl = document.getElementById('sprite');
+const spriteCtx = spriteEl.getContext('2d');
 const bubble = document.getElementById('bubble');
 
-let cfg = { enabled: false, skin: 'cat', customEmoji: '', name: '', size: 1, animation: 'bob', tips: FALLBACK_TIPS };
+let cfg = { enabled: false, skin: 'cat', customEmoji: '', name: '', size: 1, animation: 'bob', tips: FALLBACK_TIPS, spritePath: '' };
 let tips = FALLBACK_TIPS;
 let svcState = 'idle';
 let activity = 'idle'; // idle | active | working（Codex 风格 agent 活动联动）
+
+// spritesheet（petdex 格式：8 列 × 9 行状态帧）
+const SPRITE_COLS = 8;
+const SPRITE_ROWS = 9;
+const SPRITE_SIZE = 192;
+let spriteImg = null;
+let spriteFrame = 0;
+let spriteRow = 0;
 
 function emoji() {
   if (cfg.customEmoji && cfg.customEmoji.trim()) return cfg.customEmoji.trim();
   return PRESET[cfg.skin] || PRESET.cat;
 }
 
+function mediaUrl(p) {
+  return 'media://local/' + p.replace(/\\/g, '/').split('/').map(encodeURIComponent).join('/');
+}
+
+function loadSprite(path) {
+  spriteImg = null;
+  if (!path) {
+    spriteEl.classList.add('hidden');
+    emojiEl.classList.remove('hidden');
+    return;
+  }
+  const img = new Image();
+  img.onload = () => {
+    spriteImg = img;
+    spriteEl.classList.remove('hidden');
+    emojiEl.classList.add('hidden');
+    drawSprite();
+  };
+  img.onerror = () => {
+    // 加载失败回退 emoji
+    spriteImg = null;
+    spriteEl.classList.add('hidden');
+    emojiEl.classList.remove('hidden');
+  };
+  img.src = mediaUrl(path);
+}
+
+function drawSprite() {
+  if (!spriteImg) return;
+  const fw = spriteImg.naturalWidth / SPRITE_COLS;
+  const fh = spriteImg.naturalHeight / SPRITE_ROWS;
+  const size = Math.round(SPRITE_SIZE * (cfg.size || 1));
+  spriteEl.width = size;
+  spriteEl.height = Math.round(size * (fh / fw));
+  spriteCtx.clearRect(0, 0, spriteEl.width, spriteEl.height);
+  spriteCtx.drawImage(spriteImg, spriteFrame * fw, spriteRow * fh, fw, fh, 0, 0, spriteEl.width, spriteEl.height);
+  spriteFrame = (spriteFrame + 1) % SPRITE_COLS;
+  setTimeout(() => requestAnimationFrame(drawSprite), 110);
+}
+
 function apply(c) {
   cfg = Object.assign({}, cfg, c || {});
   tips = cfg.tips && cfg.tips.length ? cfg.tips : FALLBACK_TIPS;
-  pet.textContent = emoji();
-  pet.style.fontSize = Math.round(96 * (cfg.size || 1)) + 'px';
   pet.dataset.anim = cfg.animation || 'bob';
+  if (cfg.spritePath) {
+    loadSprite(cfg.spritePath);
+  } else {
+    spriteImg = null;
+    spriteEl.classList.add('hidden');
+    emojiEl.classList.remove('hidden');
+    emojiEl.textContent = emoji();
+    emojiEl.style.fontSize = Math.round(96 * (cfg.size || 1)) + 'px';
+  }
 }
 
 function randomTip() {
@@ -141,21 +199,28 @@ function renderStatus() {
     pet.classList.add('sad');
     statusEl.textContent = '💢';
     statusEl.classList.remove('hidden');
+    spriteRow = 5; // failed
   } else if (svcState === 'stopped') {
     pet.classList.add('sleeping');
     statusEl.textContent = '💤';
     statusEl.classList.remove('hidden');
+    spriteRow = 0;
   } else if (svcState === 'starting') {
     pet.classList.add('working');
     statusEl.textContent = '🔄';
     statusEl.classList.remove('hidden');
+    spriteRow = 7; // running
   } else if (svcState === 'running' && activity === 'working') {
     pet.classList.add('think');
     statusEl.textContent = '🧠';
     statusEl.classList.remove('hidden');
+    spriteRow = 6; // waiting
   } else if (svcState === 'running' && activity === 'active') {
     statusEl.textContent = '✨';
     statusEl.classList.remove('hidden');
+    spriteRow = 3; // waving
+  } else {
+    spriteRow = 0; // idle
   }
 }
 window.petApi.onServiceState(applyServiceState);

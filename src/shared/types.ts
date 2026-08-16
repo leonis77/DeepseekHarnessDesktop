@@ -41,6 +41,7 @@ export interface PetConfig {
   size: number;
   animation: 'bob' | 'float' | 'bounce' | 'none';
   tips: string[];
+  spritePath?: string; // 自定义 spritesheet（petdex 格式：8 列 × 9 行状态帧，优先于 emoji）
 }
 
 export const DEFAULT_PET: PetConfig = {
