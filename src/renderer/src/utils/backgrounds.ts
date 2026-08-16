@@ -67,6 +67,36 @@ export const gradientPresets: GradientPreset[] = [
       { color: 'rgba(148,163,184,0.25)', x: 46, y: 44, size: 45 },
     ],
   },
+  {
+    id: 'sakura',
+    name: '樱花',
+    base: '#1a0e14',
+    blobs: [
+      { color: 'rgba(244,114,182,0.50)', x: 22, y: 24, size: 60 },
+      { color: 'rgba(251,191,36,0.35)', x: 72, y: 56, size: 52 },
+      { color: 'rgba(192,132,252,0.40)', x: 46, y: 84, size: 50 },
+    ],
+  },
+  {
+    id: 'midnight',
+    name: '午夜',
+    base: '#05070f',
+    blobs: [
+      { color: 'rgba(30,58,138,0.50)', x: 26, y: 30, size: 62 },
+      { color: 'rgba(49,46,129,0.45)', x: 70, y: 64, size: 56 },
+      { color: 'rgba(14,165,233,0.30)', x: 48, y: 46, size: 46 },
+    ],
+  },
+  {
+    id: 'cyber',
+    name: '赛博',
+    base: '#080a12',
+    blobs: [
+      { color: 'rgba(34,211,238,0.45)', x: 20, y: 22, size: 58 },
+      { color: 'rgba(236,72,153,0.45)', x: 74, y: 60, size: 56 },
+      { color: 'rgba(168,85,247,0.40)', x: 46, y: 80, size: 48 },
+    ],
+  },
 ];
 
 export function getPreset(id: string): GradientPreset {

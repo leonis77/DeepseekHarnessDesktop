@@ -39,6 +39,17 @@ export default function App() {
     document.documentElement.style.setProperty('--glass-blur', `${state.config.background.glassBlur}px`);
   }, [state.config.background.glassBlur]);
 
+  // 自定义 CSS（主题增强）
+  useEffect(() => {
+    let el = document.getElementById('custom-css') as HTMLStyleElement | null;
+    if (!el) {
+      el = document.createElement('style');
+      el.id = 'custom-css';
+      document.head.appendChild(el);
+    }
+    el.textContent = state.config.customCss ?? '';
+  }, [state.config.customCss]);
+
   // 背景图片：按 imagePath 读取为 data URL（避免 file:// 跨源问题）
   useEffect(() => {
     const bg = state.config.background;

@@ -29,11 +29,21 @@ export default function HarnessView({ service, progress }: Props) {
       e.preventDefault();
       if (/^https?:/i.test(e.url)) window.harnessShell.openExternal(e.url);
     };
+    // 限制 webview 导航：只允许停留在 dsh 本地地址，外部/其它一律拦截
+    const onWillNavigate = (e: any): void => {
+      const target = e.url as string;
+      if (!/^https?:\/\/127\.0\.0\.1(:\d+)?\//i.test(target) && !/^https?:\/\/localhost(:\d+)?\//i.test(target)) {
+        e.preventDefault();
+        if (/^https?:/i.test(target)) window.harnessShell.openExternal(target);
+      }
+    };
     wv.addEventListener('dom-ready', inject);
     wv.addEventListener('new-window', onNewWindow);
+    wv.addEventListener('will-navigate', onWillNavigate);
     return () => {
       wv.removeEventListener('dom-ready', inject);
       wv.removeEventListener('new-window', onNewWindow);
+      wv.removeEventListener('will-navigate', onWillNavigate);
     };
   }, [service.url]);
 
@@ -66,5 +76,6 @@ export default function HarnessView({ service, progress }: Props) {
     key: service.url,
     className: 'harness-frame',
     src: service.url as string,
+    webpreferences: 'nodeIntegration=no,contextIsolation=yes,sandbox=yes',
   });
 }

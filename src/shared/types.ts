@@ -63,6 +63,14 @@ export const PET_SKINS = [
   { id: 'rabbit', emoji: '🐰', name: '兔子' },
   { id: 'tiger', emoji: '🐯', name: '老虎' },
   { id: 'owl', emoji: '🦉', name: '猫头鹰' },
+  { id: 'koala', emoji: '🐨', name: '考拉' },
+  { id: 'pig', emoji: '🐷', name: '小猪' },
+  { id: 'penguin', emoji: '🐧', name: '企鹅' },
+  { id: 'unicorn', emoji: '🦄', name: '独角兽' },
+  { id: 'octopus', emoji: '🐙', name: '章鱼' },
+  { id: 'whale', emoji: '🐳', name: '鲸鱼' },
+  { id: 'dino', emoji: '🦖', name: '恐龙' },
+  { id: 'turtle', emoji: '🐢', name: '乌龟' },
 ] as const;
 
 export interface AppConfig {
@@ -84,6 +92,7 @@ export interface AppConfig {
   remoteEnabled?: boolean;
   remoteToken?: string;
   modelProviders?: ModelProviderConfig[];
+  customCss?: string; // 主题增强：自定义 CSS
 }
 
 /** ── 模型/API 桌面配置 ── */
@@ -220,6 +229,7 @@ export interface RemoteStatus {
   running: boolean;
   url: string | null; // LAN 访问地址
   token: string;
+  pairingCode: string; // 短期一次性配对码（扫码用）
   error: string | null;
 }
 

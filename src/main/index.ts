@@ -204,6 +204,7 @@ function remoteStatus(): RemoteStatus {
     running: remoteGateway != null,
     url: remoteGateway ? remoteGateway.url : null,
     token: cfg.remoteToken ?? '',
+    pairingCode: remoteGateway?.pairingCode ?? '',
     error: null,
   };
 }
@@ -396,10 +397,14 @@ function registerIpc(): void {
   ipcMain.handle(IPC.remote.status, () => remoteStatus());
   ipcMain.handle(IPC.remote.setEnabled, (_event, enabled: boolean) => applyRemoteEnabled(enabled));
   ipcMain.handle(IPC.remote.regenerateToken, () => regenerateRemoteToken());
+  ipcMain.handle(IPC.remote.regenerateCode, () => {
+    remoteGateway?.regenerateCode();
+    return remoteStatus();
+  });
   ipcMain.handle(IPC.remote.qr, async () => {
     const st = remoteStatus();
     if (!st.running || !st.url) return null;
-    return qrDataUrl(`${st.url}?token=${st.token}`);
+    return qrDataUrl(`${st.url}?code=${st.pairingCode}`);
   });
 
   // 更新

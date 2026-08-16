@@ -103,6 +103,7 @@ export const IPC = {
     status: 'remote:status',
     setEnabled: 'remote:set-enabled',
     regenerateToken: 'remote:regenerate-token',
+    regenerateCode: 'remote:regenerate-code',
     qr: 'remote:qr',
   },
   update: {
@@ -203,6 +204,7 @@ export interface ShellApi {
     status(): Promise<RemoteStatus>;
     setEnabled(enabled: boolean): Promise<RemoteStatus>;
     regenerateToken(): Promise<RemoteStatus>;
+    regenerateCode(): Promise<RemoteStatus>;
     qr(): Promise<string | null>;
   };
 

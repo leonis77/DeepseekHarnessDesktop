@@ -292,6 +292,17 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
             }}
           />
         </div>
+        <div className="kv custom-css-row">
+          <span>自定义 CSS</span>
+        </div>
+        <textarea
+          className="custom-css-input"
+          rows={4}
+          placeholder="在此输入自定义 CSS（如 .titlebar { ... }）"
+          value={config.customCss ?? ''}
+          onChange={(e) => void save({ customCss: e.target.value })}
+        />
+        <p className="hint">自定义 CSS 实时注入到壳 UI，用于主题深度定制。</p>
       </section>
 
       <section className="settings-card">
@@ -689,15 +700,30 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
                       <span className="mono">{remote.url}/__manage</span>
                     </div>
                     <div className="kv">
+                      <span>配对码（扫码用，一次性）</span>
+                      <span className="mono">{remote.pairingCode}</span>
+                    </div>
+                    <div className="kv">
                       <span>访问 token</span>
                       <span className="mono">{remote.token}</span>
                     </div>
-                    <button className="btn" onClick={() => void regenerateRemote()} disabled={remoteBusy}>
-                      重新生成 token
-                    </button>
+                    <div className="btn-row">
+                      <button
+                        className="btn"
+                        onClick={async () => {
+                          await refreshRemote(await window.harnessShell.remote.regenerateCode());
+                        }}
+                        disabled={remoteBusy}
+                      >
+                        重新生成配对码
+                      </button>
+                      <button className="btn" onClick={() => void regenerateRemote()} disabled={remoteBusy}>
+                        重新生成 token
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <p className="hint">手机与电脑连同一 WiFi，用浏览器/相机扫左侧二维码即可访问。</p>
+                <p className="hint">手机与电脑连同一 WiFi，用相机扫左侧二维码即可访问（二维码含一次性配对码，不泄露 token）。</p>
               </>
             ) : (
               <p className="hint">远程访问已开启，但网关未运行（可能启动失败）。{remote.error ? `错误：${remote.error}` : ''}</p>

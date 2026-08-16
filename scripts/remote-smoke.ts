@@ -51,10 +51,12 @@ async function main(): Promise<void> {
   const r2 = await fetch(`${base}/__auth`, { method: 'POST', body: 'token=wrong', headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   check('错误 token → 401', r2.status === 401);
 
-  // 3) 正确 ?token= → 302 + 种 cookie
-  const r3 = await fetch(`${base}/?token=deadbeefcafebabe`, { redirect: 'manual' });
+  // 3) 正确 ?code=<配对码> → 302 + 种 cookie（一次性，不泄露持久 token）
+  const r3 = await fetch(`${base}/?code=${gateway.pairingCode}`, { redirect: 'manual' });
   const cookie = r3.headers.get('set-cookie') ?? '';
-  check('?token= → 302 并种 cookie', r3.status === 302 && cookie.includes('harness_remote='));
+  check('?code= 配对码 → 302 并种 cookie', r3.status === 302 && cookie.includes('harness_remote='));
+  const r3b = await fetch(`${base}/?code=${gateway.pairingCode}`, { redirect: 'manual' });
+  check('配对码一次性（二次使用失败）', r3b.status !== 302);
 
   // 4) 带 cookie 请求 → 代理到上游
   const r4 = await fetch(`${base}/hello`, { headers: { cookie: 'harness_remote=deadbeefcafebabe' } });

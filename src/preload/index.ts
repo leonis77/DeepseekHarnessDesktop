@@ -105,6 +105,7 @@ const api: ShellApi = {
     status: () => ipcRenderer.invoke(IPC.remote.status),
     setEnabled: (enabled: boolean) => ipcRenderer.invoke(IPC.remote.setEnabled, enabled),
     regenerateToken: () => ipcRenderer.invoke(IPC.remote.regenerateToken),
+    regenerateCode: () => ipcRenderer.invoke(IPC.remote.regenerateCode),
     qr: () => ipcRenderer.invoke(IPC.remote.qr),
   },
 

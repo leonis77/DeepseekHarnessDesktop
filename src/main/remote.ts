@@ -76,6 +76,8 @@ export interface RemoteGateway {
   port: number;
   host: string;
   url: string;
+  pairingCode: string; // 短期一次性配对码（扫码用，不泄露持久 token）
+  regenerateCode(): string;
   stop(): Promise<void>;
 }
 
@@ -92,6 +94,11 @@ export function lanAddress(): string | null {
 /** 生成 16 位十六进制 token（64-bit，个人 LAN 网关够用）。 */
 export function generateToken(): string {
   return crypto.randomBytes(8).toString('hex');
+}
+
+/** 生成 6 位数字短期配对码（扫码用，一次性）。 */
+function randomPairingCode(): string {
+  return String(crypto.randomInt(0, 1000000)).padStart(6, '0');
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -150,44 +157,87 @@ export function startRemoteGateway(options: RemoteGatewayOptions): Promise<Remot
   const { getTarget, token, port = 0, manage } = options;
   const log = options.log ?? (() => {});
   const host = '0.0.0.0';
+  let pairingCode = randomPairingCode();
+
+  // 认证限流：每 IP 滑动窗口计数，超限锁定（防暴力枚举配对码/token）
+  const authFails = new Map<string, { count: number; windowStart: number }>();
+  const RATE_MAX = 8;
+  const RATE_WINDOW_MS = 60 * 1000;
+  function rateLimited(ip: string): boolean {
+    const now = Date.now();
+    const e = authFails.get(ip);
+    if (!e) return false;
+    if (now - e.windowStart > RATE_WINDOW_MS) {
+      authFails.delete(ip);
+      return false;
+    }
+    return e.count >= RATE_MAX;
+  }
+  function recordFail(ip: string): void {
+    const now = Date.now();
+    const e = authFails.get(ip);
+    if (!e || now - e.windowStart > RATE_WINDOW_MS) authFails.set(ip, { count: 1, windowStart: now });
+    else e.count += 1;
+  }
+  function clientIp(req: http.IncomingMessage): string {
+    return String(req.socket.remoteAddress ?? 'unknown');
+  }
 
   const isAuthed = (req: http.IncomingMessage): boolean => {
-    const url = new URL(req.url ?? '/', 'http://x');
-    if (url.searchParams.get('token') === token) return true;
     return timingSafeEqual(readCookies(req.headers.cookie)[COOKIE_NAME] ?? '', token);
   };
 
   const server = http.createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://x');
+    const ip = clientIp(req);
 
     // 登录表单提交
     if (url.pathname === '/__auth' && req.method === 'POST') {
+      if (rateLimited(ip)) {
+        res.writeHead(429, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end('尝试次数过多，请稍后再试');
+        return;
+      }
       let body = '';
       req.on('data', (c) => (body += c));
       req.on('end', () => {
         const submitted = new URLSearchParams(body).get('token') ?? '';
         if (timingSafeEqual(submitted, token)) {
+          authFails.delete(ip);
           res.writeHead(302, {
             location: '/',
             'set-cookie': `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax`,
           });
           res.end();
         } else {
+          recordFail(ip);
           serveLogin(res, true);
         }
       });
       return;
     }
 
-    // token 放 URL：种 cookie 后跳转（去掉 token，避免泄漏到日志/历史）
-    const urlToken = url.searchParams.get('token');
-    if (urlToken === token) {
-      url.searchParams.delete('token');
-      res.writeHead(302, {
-        location: url.pathname + url.search,
-        'set-cookie': `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax`,
-      });
-      res.end();
+    // 短期配对码放 URL（一次性）：换取持久 Cookie，不泄露持久 token
+    const code = url.searchParams.get('code');
+    if (code != null) {
+      if (rateLimited(ip)) {
+        res.writeHead(429, { 'content-type': 'text/plain; charset=utf-8' });
+        res.end('尝试次数过多，请稍后再试');
+        return;
+      }
+      if (pairingCode && timingSafeEqual(code, pairingCode)) {
+        pairingCode = ''; // 一次性消耗
+        authFails.delete(ip);
+        url.searchParams.delete('code');
+        res.writeHead(302, {
+          location: url.pathname + url.search,
+          'set-cookie': `${COOKIE_NAME}=${token}; Path=/; HttpOnly; SameSite=Lax`,
+        });
+        res.end();
+        return;
+      }
+      recordFail(ip);
+      serveLogin(res, true);
       return;
     }
 
@@ -207,6 +257,17 @@ export function startRemoteGateway(options: RemoteGatewayOptions): Promise<Remot
       return;
     }
     if (url.pathname === '/__api/sessions/delete' && req.method === 'POST' && manage) {
+      // CSRF 兜底：Origin 若存在必须同源
+      const origin = req.headers.origin;
+      if (origin) {
+        const ohost = new URL(origin).host;
+        const rhost = req.headers.host ?? '';
+        if (ohost !== rhost) {
+          res.writeHead(403, { 'content-type': 'application/json; charset=utf-8' });
+          res.end(JSON.stringify({ ok: false, error: 'forbidden' }));
+          return;
+        }
+      }
       let body = '';
       req.on('data', (c) => (body += c));
       req.on('end', () => {
@@ -257,6 +318,11 @@ export function startRemoteGateway(options: RemoteGatewayOptions): Promise<Remot
         port: actualPort,
         host,
         url: `http://${lan ?? '127.0.0.1'}:${actualPort}`,
+        pairingCode,
+        regenerateCode: () => {
+          pairingCode = randomPairingCode();
+          return pairingCode;
+        },
         stop: () =>
           new Promise((res) => {
             server.close(() => res());

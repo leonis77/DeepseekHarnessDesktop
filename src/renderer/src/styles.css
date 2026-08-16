@@ -875,6 +875,12 @@ body {
   padding: 10px 0;
 }
 
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .remote-qr {
   width: 168px;
   height: 168px;
@@ -1132,6 +1138,18 @@ body {
 .kbd-input.wide {
   width: 100%;
   min-width: 260px;
+}
+
+.custom-css-input {
+  width: 100%;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 8px;
+  font-family: Consolas, 'Courier New', monospace;
+  font-size: 12px;
+  resize: vertical;
 }
 
 /* ── 终端多标签 ── */
