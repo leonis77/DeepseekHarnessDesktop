@@ -5,13 +5,16 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { DshServer } from '../src/main/server';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const unpacked = path.join(__dirname, '..', 'dist', 'win-unpacked');
 const electronExe = path.join(unpacked, 'Harness UI.exe');
-const bundledBin = path.join(unpacked, 'resources', 'dsh', 'lib', 'bin.js');
+const archive = path.join(unpacked, 'resources', 'dsh.tar.gz');
+const extractedDsh = path.join(__dirname, '..', '.smoke-dsh');
+const bundledBin = path.join(extractedDsh, 'dsh', 'lib', 'bin.js');
 
 let failures = 0;
 function check(name: string, condition: boolean, extra = ''): void {
@@ -25,11 +28,17 @@ function check(name: string, condition: boolean, extra = ''): void {
 async function main(): Promise<void> {
   console.log('== 自包含冒烟测试（Electron 内置 Node + 打包 dsh）==');
   check('win-unpacked 存在', fs.existsSync(electronExe), electronExe);
-  check('bundled dsh 存在', fs.existsSync(bundledBin), bundledBin);
-  if (!fs.existsSync(electronExe) || !fs.existsSync(bundledBin)) {
+  check('dsh.tar.gz 存在', fs.existsSync(archive), archive);
+  if (!fs.existsSync(electronExe) || !fs.existsSync(archive)) {
     console.log('\nSMOKE FAILED（缺产物，先运行 npm run dist:dir）');
     process.exit(1);
   }
+
+  // 解压 dsh.tar.gz（等价于应用首次启动的 ensureDshExtracted）
+  fs.rmSync(extractedDsh, { recursive: true, force: true });
+  fs.mkdirSync(extractedDsh, { recursive: true });
+  execFileSync('tar', ['-xzf', archive, '-C', extractedDsh], { stdio: 'ignore' });
+  check('解压后 bundled dsh 存在', fs.existsSync(bundledBin), bundledBin);
 
   // 隔离 DSH_HOME
   const realHome = process.env.DSH_HOME || path.join(process.env.USERPROFILE ?? '', '.dsh');

@@ -18,8 +18,14 @@ function resolveSrc() {
     const pkg = path.join(path.dirname(process.env.DSH_DESKTOP_DSH_BIN), "..");
     if (fs.existsSync(path.join(pkg, "package.json"))) return path.resolve(pkg);
   }
-  // 2) 已知全局安装位置
+  // 2) 已知全局安装位置 + npm root -g（兼容 CI/其他机器）
   const candidates = ["D:\\node\\node_modules\\@deepseek-ai\\dsh"];
+  try {
+    const root = execSync("npm root -g", { encoding: "utf8" }).trim();
+    candidates.push(path.join(root, "@deepseek-ai", "dsh"));
+  } catch {
+    /* ignore */
+  }
   for (const c of candidates) {
     if (fs.existsSync(path.join(c, "package.json"))) return c;
   }

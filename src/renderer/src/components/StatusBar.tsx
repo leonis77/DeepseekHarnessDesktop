@@ -2,6 +2,7 @@ import type { ServiceState } from '../../../shared/types';
 
 const STATUS_LABEL: Record<string, string> = {
   idle: '未启动',
+  preparing: '准备环境…',
   starting: '启动中…',
   running: '运行中',
   attached: '已连接现有实例',
@@ -10,6 +11,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const STATUS_COLOR: Record<string, string> = {
   idle: '#64748b',
+  preparing: '#f59e0b',
   starting: '#f59e0b',
   running: '#22c55e',
   attached: '#38bdf8',

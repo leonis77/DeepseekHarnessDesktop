@@ -92,7 +92,40 @@ function electronResourcesPath(): string | undefined {
 }
 
 /** 自包含打包后 dsh 所在的真实目录（resources/dsh）；开发/纯 Node 环境为 null。 */
+function extractedDshBase(): string {
+  return process.env.DSH_DESKTOP_DSH_DIR || path.join(process.env.APPDATA || '', 'Harness UI', 'dsh');
+}
+
+function extractedDshDir(): string | null {
+  const base = extractedDshBase();
+  return fs.existsSync(path.join(base, 'lib', 'bin.js')) ? base : null;
+}
+
+function dshArchivePath(): string | null {
+  const resourcesPath = electronResourcesPath();
+  if (!resourcesPath) return null;
+  const archive = path.join(resourcesPath, 'dsh.tar.gz');
+  return fs.existsSync(archive) ? archive : null;
+}
+
+/** 首次启动把 resources/dsh.tar.gz 解压到用户目录（之后复用，无需重复解压）。 */
+export async function ensureDshExtractedAsync(onStatus?: (status: 'preparing') => void): Promise<void> {
+  if (extractedDshDir()) return;
+  const archive = dshArchivePath();
+  if (!archive) return;
+  const base = extractedDshBase();
+  fs.mkdirSync(path.dirname(base), { recursive: true });
+  onStatus?.('preparing');
+  await new Promise<void>((resolve, reject) => {
+    const child = spawn('tar', ['-xzf', archive, '-C', path.dirname(base)], { windowsHide: true });
+    child.on('error', (e) => reject(e));
+    child.on('exit', (code) => (code === 0 ? resolve() : reject(new Error(`tar 解压失败（code=${code}）`))));
+  });
+}
+
 export function bundledDshDir(): string | null {
+  const extracted = extractedDshDir();
+  if (extracted) return extracted;
   const resourcesPath = electronResourcesPath();
   if (resourcesPath) {
     const dir = path.join(resourcesPath, 'dsh');

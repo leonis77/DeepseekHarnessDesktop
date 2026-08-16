@@ -1,7 +1,7 @@
 import { app, ipcMain, Menu, shell, dialog, Notification, type BrowserWindow, type Tray } from 'electron';
 import { join } from 'node:path';
 import fs from 'node:fs';
-import { DshServer } from './server';
+import { DshServer, ensureDshExtractedAsync } from './server';
 import { AppConfigStore } from './config';
 import { ExtensionRegistry } from './extensions/registry';
 import { registerBuiltinExtensions } from './extensions/builtin';
@@ -151,6 +151,9 @@ function broadcastConfig(): void {
 
 async function startServer(): Promise<string | null> {
   ensureBundledPlugins();
+  await ensureDshExtractedAsync(() => {
+    mainWindow?.webContents.send(IPC.service.onState, { status: 'preparing', mode: null, url: null, pid: null });
+  });
   server = new DshServer({
     port: 0,
     profile: config.get().profile,

@@ -42,7 +42,13 @@ export default function HarnessView({ service }: Props) {
     return (
       <div className="harness-loading">
         <div className="spinner" />
-        <p>{service.status === 'starting' ? '正在启动 Harness 服务…' : '等待服务…'}</p>
+        <p>
+          {service.status === 'preparing'
+            ? '首次启动，正在准备 Harness 环境（解压中）…'
+            : service.status === 'starting'
+              ? '正在启动 Harness 服务…'
+              : '等待服务…'}
+        </p>
         {service.status === 'error' && <p className="muted">启动失败，请到「设置」查看，或使用「重启服务」。</p>}
       </div>
     );

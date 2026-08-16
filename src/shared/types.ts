@@ -1,7 +1,7 @@
 /** 主进程与 Shell UI 共享的类型契约。 */
 
 export type ServerMode = 'attach' | 'spawn';
-export type ServerStatus = 'idle' | 'starting' | 'running' | 'attached' | 'stopped' | 'error';
+export type ServerStatus = 'idle' | 'preparing' | 'starting' | 'running' | 'attached' | 'stopped' | 'error';
 
 export interface ServiceState {
   status: ServerStatus;
