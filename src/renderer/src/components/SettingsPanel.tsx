@@ -339,7 +339,7 @@ export default function SettingsPanel({ service, config, appVersion, onRestart, 
           <div className="custom-gradient">
             <span className="muted">自定义渐变（改任意颜色即切换）</span>
             <div className="custom-colors">
-              {background.customColors.map((c, i) => (
+              {(background.customColors ?? ['#3b82f6', '#8b5cf6', '#14b8a6']).map((c, i) => (
                 <input
                   key={i}
                   type="color"

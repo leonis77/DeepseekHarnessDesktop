@@ -32,8 +32,17 @@ export class AppConfigStore {
 
   private load(): AppConfig {
     try {
-      const raw = fs.readFileSync(this.file, 'utf8');
-      return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<AppConfig>) };
+      const raw = JSON.parse(fs.readFileSync(this.file, 'utf8')) as Partial<AppConfig>;
+      // 深合并嵌套对象：旧版本 config.json 缺字段（如 background.customColors / pet.tips）时用默认值补齐，
+      // 避免渲染层 .map 报 "Cannot read properties of undefined (reading 'map')"
+      return {
+        ...DEFAULTS,
+        ...raw,
+        window: { ...DEFAULTS.window, ...(raw.window ?? {}) },
+        keybindings: { ...DEFAULTS.keybindings, ...(raw.keybindings ?? {}) },
+        background: { ...DEFAULTS.background, ...(raw.background ?? {}) },
+        pet: { ...DEFAULTS.pet, ...(raw.pet ?? {}) },
+      };
     } catch {
       return { ...DEFAULTS };
     }
