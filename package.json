@@ -1,7 +1,7 @@
 {
   "name": "harness-ui",
   "productName": "Harness UI",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "DeepSeek Harness 桌面壳应用（Codex 风格，可扩展）",
   "author": "local",
   "license": "MIT",
