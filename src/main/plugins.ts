@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveDshHome } from './fs';
-import { BUNDLED_PLUGINS } from '../shared/plugins';
+import { BUNDLED_PLUGINS, RETIRED_PLUGINS } from '../shared/plugins';
 import type { PluginState } from '../shared/types';
 
 /**
@@ -25,7 +25,20 @@ export function ensureBundledPlugins(disabledPlugins: string[] = []): void {
   const enabled = new Set(BUNDLED_PLUGINS.map((p) => p.id).filter((id) => !disabledPlugins.includes(id)));
   let changed = false;
 
-  // 先移除被禁用的内置插件（保留用户自己加的其它 bundle）
+  // 先移除已下架的插件（避免残留 bundle 导致 dsh 启动失败）
+  const retired = new Set(RETIRED_PLUGINS);
+  const withoutRetired = bundles.filter((b) => !retired.has(b));
+  if (withoutRetired.length !== bundles.length) changed = true;
+  bundles.length = 0;
+  bundles.push(...withoutRetired);
+  for (const id of RETIRED_PLUGINS) {
+    if (id in deps) {
+      delete deps[id];
+      changed = true;
+    }
+  }
+
+  // 再移除被禁用的内置插件（保留用户自己加的其它 bundle）
   const filtered = bundles.filter((b) => !BUNDLED_PLUGINS.some((p) => p.id === b) || enabled.has(b));
   if (filtered.length !== bundles.length) changed = true;
   bundles.length = 0;
